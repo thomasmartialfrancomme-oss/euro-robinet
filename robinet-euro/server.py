@@ -31,7 +31,8 @@ FAUCET_MIN_CENTS = 1              # gain minimum (0,01 €)
 FAUCET_MAX_CENTS = 2              # gain maximum (0,02 €)
 GAME_MAX_REWARD_CENTS = 5         # gain max par partie (0,05 €)
 GAME_DAILY_CAP_CENTS = 50         # plafond par jeu et par jour (0,50 €)
-GAMES = ("clicker", "coinflip", "memory")
+GAMES = ("clicker", "memory")
+COINFLIP_STAKE_CENTS = 5          # mise du jeu Pile ou Face (0,05 €)
 
 def now_ms():
     return int(time.time() * 1000)
@@ -466,6 +467,28 @@ def handle_api(conn, path, method, body, token):
             add_transaction(conn, u["id"], "earn", reward, f"Jeu : {game}")
         conn.commit()
         return 200, {"reward": reward, "balance": balance(conn, u["id"])}
+
+    if endpoint == "play_coinflip" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        choice = body.get("choice")
+        if choice not in ("pile", "face"):
+            return 400, {"error": "Choisis Pile ou Face."}
+        stake = COINFLIP_STAKE_CENTS
+        if u["balance_cents"] < stake:
+            return 400, {"error": "Solde insuffisant : il faut 0,05 € pour jouer."}
+        actual = random.choice(["pile", "face"])
+        won = (choice == actual)
+        if won:
+            conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                         (stake, stake, u["id"]))
+            add_transaction(conn, u["id"], "earn", stake, "Pile ou Face (gagné)")
+        else:
+            conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (stake, u["id"]))
+            add_transaction(conn, u["id"], "earn", -stake, "Pile ou Face (perdu)")
+        conn.commit()
+        return 200, {"won": won, "actual": actual, "stake": stake, "balance": balance(conn, u["id"])}
 
     if endpoint == "complete_cpa" and method == "POST":
         u = require_auth(conn, token)
