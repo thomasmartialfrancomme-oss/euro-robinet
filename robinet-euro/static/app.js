@@ -508,27 +508,47 @@ async function finishClicker() {
 }
 
 // --- Pile ou Face ---
+let coinflipBusy = false;
 async function playCoinflip(choice) {
+  if (coinflipBusy) return;
+  coinflipBusy = true;
   const coin = document.getElementById("coinflip-coin");
   const result = document.getElementById("coinflip-result");
+  const btnPile = document.getElementById("cf-pile");
+  const btnFace = document.getElementById("cf-face");
+  btnPile.disabled = true;
+  btnFace.disabled = true;
+  result.className = "coinflip-result";
+  result.textContent = "…";
   coin.classList.remove("flip");
   void coin.offsetWidth;
   coin.classList.add("flip");
-  const win = Math.random() < 0.5;
-  result.className = "coinflip-result";
-  if (win) {
-    result.textContent = "🎉 Gagné ! +0,05 €";
-    result.classList.add("win");
-    try {
-      const r = await API.post("play_game", { game: "coinflip", score: 5 });
-      toast("Pile ou Face : +" + eur(r.reward) + " !", "gold");
-    } catch (ex) { toast(ex.message, "err"); }
-  } else {
-    result.textContent = "😕 Perdu… réessaie !";
-    result.classList.add("lose");
-    try { await API.post("play_game", { game: "coinflip", score: 0 }); } catch (e) {}
+  try {
+    const r = await API.post("play_coinflip", { choice });
+    setTimeout(async () => {
+      if (r.won) {
+        result.textContent = `🎉 C'était ${r.actual === "pile" ? "Pile" : "Face"} ! Tu gagnes ${eur(r.stake)}`;
+        result.classList.add("win");
+        toast("Pile ou Face : +" + eur(r.stake) + " !", "gold");
+      } else {
+        result.textContent = `😕 C'était ${r.actual === "pile" ? "Pile" : "Face"}… tu perds ${eur(r.stake)}`;
+        result.classList.add("lose");
+        toast("Pile ou Face : -" + eur(r.stake), "err");
+      }
+      await refresh();
+      coinflipBusy = false;
+      btnPile.disabled = false;
+      btnFace.disabled = false;
+    }, 850);
+  } catch (ex) {
+    result.textContent = ex.message;
+    result.className = "coinflip-result";
+    toast(ex.message, "err");
+    await refresh();
+    coinflipBusy = false;
+    btnPile.disabled = false;
+    btnFace.disabled = false;
   }
-  await refresh();
 }
 document.getElementById("cf-pile").addEventListener("click", () => playCoinflip("pile"));
 document.getElementById("cf-face").addEventListener("click", () => playCoinflip("face"));
@@ -648,7 +668,7 @@ function renderHistory(recent) {
     const tr = document.createElement("tr");
     const d = new Date(t.created_at);
     const dateStr = d.toLocaleDateString("fr-FR") + " " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-    const kind = t.kind === "earn" ? "💵 Gain" : "💸 Retrait";
+    const kind = t.kind === "withdraw" ? "💸 Retrait" : (t.amount_cents < 0 ? "🎲 Perte" : "💵 Gain");
     const amt = t.amount_cents > 0
       ? `<span class="amt-pos">+${eur(t.amount_cents)}</span>`
       : `<span class="amt-neg">${eur(Math.abs(t.amount_cents))}</span>`;
