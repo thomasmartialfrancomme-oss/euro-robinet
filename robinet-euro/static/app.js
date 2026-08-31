@@ -599,7 +599,7 @@ document.getElementById("claim-bonus-btn").addEventListener("click", async () =>
 });
 
 // ===== WHEEL =====
-const WHEEL_REWARDS = [15, 1, 2, 3, 5, 0, 10, 1, 2, 4, 1, 2];
+const WHEEL_REWARDS = [0, 1, 2, 1, 3, 5, 1, 2, 1, 2, 1, 3];
 let spinning = false;
 document.getElementById("spin-btn").addEventListener("click", () => {
   document.getElementById("wheel-modal").classList.remove("hidden");
