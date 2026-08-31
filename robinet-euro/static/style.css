@@ -236,6 +236,60 @@ button{font-family:inherit;cursor:pointer}
 .seg:nth-child(odd){background:#2563eb}.seg:nth-child(even){background:#16a34a}
 .wheel-result{font-size:20px;font-weight:800;margin:10px 0;min-height:28px;color:var(--accent)}
 
+/* ===== ROBINET € ===== */
+.faucet-card{
+  display:flex;gap:26px;align-items:center;flex-wrap:wrap;
+  background:linear-gradient(135deg,#0f2b3a,#123c52);border:1px solid #1f5c78;
+  border-radius:18px;padding:24px;margin-bottom:20px;position:relative;overflow:hidden;
+}
+.faucet-card::before{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(400px 200px at 30% 0%, rgba(34,197,94,.12), transparent 60%);
+}
+.faucet-left{position:relative;z-index:2}
+.faucet-scene{
+  position:relative;width:150px;height:170px;display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-start;
+}
+.faucet-pipe{font-size:64px;line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.4))}
+.faucet-stream{
+  display:flex;flex-direction:column;align-items:center;gap:4px;height:60px;
+  overflow:hidden;opacity:0;transition:opacity .2s;
+}
+.faucet-stream.on{opacity:1}
+.drop{font-size:16px;animation:drip 1s linear infinite}
+.drop:nth-child(2){animation-delay:.33s}
+.drop:nth-child(3){animation-delay:.66s}
+@keyframes drip{0%{transform:translateY(-40px);opacity:0}30%{opacity:1}100%{transform:translateY(20px);opacity:0}}
+.faucet-bowl{font-size:40px;line-height:1;margin-top:2px}
+.faucet-right{position:relative;z-index:2;flex:1;min-width:240px}
+.faucet-right h2{font-size:22px;margin-bottom:6px}
+.faucet-info{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}
+.faucet-reward-range,.faucet-cooldown{
+  background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.12);
+  padding:8px 14px;border-radius:10px;font-size:13px;color:var(--muted)
+}
+.faucet-reward-range b,.faucet-cooldown b{color:var(--accent)}
+.faucet-btn{
+  background:linear-gradient(135deg,#22c55e,#059669);color:#04210f;border:none;
+  padding:14px 24px;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;
+  transition:.15s;width:100%;max-width:320px;box-shadow:0 6px 20px rgba(34,197,94,.3);
+}
+.faucet-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.faucet-btn:disabled{opacity:.5;cursor:not-allowed;filter:grayscale(.3);transform:none}
+.faucet-timer{min-height:22px;margin-top:10px;font-size:14px;font-weight:700;color:var(--gold)}
+.faucet-timer.ready{color:var(--accent)}
+
+/* pièces qui tombent après ouverture */
+.coin-fall{
+  position:absolute;z-index:5;font-size:26px;pointer-events:none;
+  animation:coinfall 1.1s ease-in forwards;
+}
+@keyframes coinfall{
+  0%{transform:translateY(0) rotate(0);opacity:1}
+  100%{transform:translateY(150px) rotate(360deg);opacity:0}
+}
+
 /* ===== TOASTS ===== */
 #toast-container{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:10px;z-index:200}
 .toast{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);
