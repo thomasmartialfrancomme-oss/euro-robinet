@@ -26,6 +26,9 @@ DAILY_CAP_CENTS = 500             # plafond de gain / jour (5 €)
 VIDEO_COOLDOWN_SEC = 45           # délai entre 2 vidéos
 BONUS_CENTS = 5                   # bonus quotidien (0,05 €)
 WHEEL_SPINS_PER_DAY = 5
+FAUCET_COOLDOWN_SEC = 180         # recharge du robinet (3 minutes)
+FAUCET_MIN_CENTS = 1              # gain minimum (0,01 €)
+FAUCET_MAX_CENTS = 5              # gain maximum (0,05 €)
 
 def now_ms():
     return int(time.time() * 1000)
@@ -110,6 +113,12 @@ def init_db():
         spun_at INTEGER NOT NULL,
         reward_cents INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS faucet_claims (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        claimed_at INTEGER NOT NULL,
+        reward_cents INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -160,6 +169,13 @@ def init_db():
 # ---------------- HELPERS ----------------
 def cents_to_str(c):
     return f"{c/100:.2f}".replace(".", ",")
+
+def fmt_wait(sec):
+    sec = int(sec)
+    if sec >= 60:
+        m, s = divmod(sec, 60)
+        return f"{m} min {s:02d} s"
+    return f"{sec} s"
 
 def get_user_by_token(conn, token):
     if not token:
@@ -383,6 +399,26 @@ def handle_api(conn, path, method, body, token):
         conn.commit()
         return 200, {"reward": reward, "balance": balance(conn, u["id"])}
 
+    if endpoint == "claim_faucet" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        last = conn.execute("SELECT claimed_at FROM faucet_claims WHERE user_id=? ORDER BY claimed_at DESC LIMIT 1",
+                            (u["id"],)).fetchone()
+        if last and (now_ms() - last["claimed_at"]) < FAUCET_COOLDOWN_SEC * 1000:
+            wait = FAUCET_COOLDOWN_SEC - (now_ms() - last["claimed_at"]) // 1000
+            return 429, {"error": f"Le robinet se recharge. Réessaie dans {fmt_wait(wait)}."}
+        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
+            return 429, {"error": "Plafond journalier atteint (5,00 €). Reviens demain !"}
+        reward = random.randint(FAUCET_MIN_CENTS, FAUCET_MAX_CENTS)
+        conn.execute("INSERT INTO faucet_claims(user_id,claimed_at,reward_cents) VALUES(?,?,?)",
+                     (u["id"], now_ms(), reward))
+        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                     (reward, reward, u["id"]))
+        add_transaction(conn, u["id"], "earn", reward, "Robinet €")
+        conn.commit()
+        return 200, {"reward": reward, "balance": balance(conn, u["id"]), "cooldown": FAUCET_COOLDOWN_SEC}
+
     # ---- WITHDRAWALS ----
     if endpoint == "withdrawals" and method == "GET":
         u = require_auth(conn, token)
@@ -532,11 +568,19 @@ def dashboard_payload(conn, u):
     offers = conn.execute("SELECT * FROM offers WHERE active=1").fetchall()
     recent = conn.execute("SELECT * FROM transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 15", (u["id"],)).fetchall()
     lb = conn.execute("SELECT username, total_earned_cents FROM users WHERE banned=0 ORDER BY total_earned_cents DESC LIMIT 10").fetchall()
+    last_faucet = conn.execute("SELECT claimed_at FROM faucet_claims WHERE user_id=? ORDER BY claimed_at DESC LIMIT 1",
+                               (u["id"],)).fetchone()
     return {
         "user": user_payload(conn, u),
         "offers": [offer_payload(conn, u, o) for o in offers],
         "recent": [dict(r) for r in recent],
         "leaderboard": [{"username": r["username"], "earned": r["total_earned_cents"]} for r in lb],
+        "faucet": {
+            "cooldown": FAUCET_COOLDOWN_SEC,
+            "min": FAUCET_MIN_CENTS,
+            "max": FAUCET_MAX_CENTS,
+            "last_claim": last_faucet["claimed_at"] if last_faucet else 0,
+        },
     }
 
 # ---------------- HTTP SERVER ----------------
