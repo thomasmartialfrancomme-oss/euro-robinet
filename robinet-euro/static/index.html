@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robinet € — Gagne de l'argent en ligne</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ ÉCRAN AUTH ============ -->
+<div id="auth-screen" class="auth-screen hidden">
+  <div class="auth-card">
+    <div class="logo-big">💧 Robinet <span>€</span></div>
+    <p class="tagline">Gagne de l'argent en regardant des pubs, en cliquant et en répondant à des sondages.</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-mode="login">Connexion</button>
+      <button class="auth-tab" data-mode="register">Inscription</button>
+    </div>
+    <form id="auth-form" class="auth-form">
+      <div class="field" id="email-field" style="display:none">
+        <label>Email (optionnel)</label>
+        <input type="email" id="email" placeholder="toi@exemple.fr" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Nom d'utilisateur</label>
+        <input type="text" id="username" placeholder="ex: lucas" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>Mot de passe</label>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <div id="auth-error" class="error-box hidden"></div>
+      <button type="submit" class="btn-primary big" id="auth-submit">Se connecter</button>
+    </form>
+    <p class="hint">Démo : compte admin = <b>admin</b> / <b>admin123</b></p>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="logo">💧 Robinet <span>€</span></div>
+    <nav class="nav">
+      <button class="nav-btn active" data-tab="home">🏠 Accueil</button>
+      <button class="nav-btn" data-tab="earn">🎬 Gagner</button>
+      <button class="nav-btn" data-tab="withdraw">💸 Retrait</button>
+      <button class="nav-btn" data-tab="history">📜 Historique</button>
+      <button class="nav-btn" data-tab="admin" id="admin-nav" style="display:none">⚙️ Admin</button>
+    </nav>
+    <div class="user-box">
+      <div class="balance-pill" title="Solde disponible">💰 <span id="top-balance">0,00 €</span></div>
+      <div class="user-menu">
+        <span id="top-username">—</span>
+        <button class="btn-ghost" id="logout-btn" title="Déconnexion">⎋</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- ===== ACCUEIL ===== -->
+    <section id="tab-home" class="tab active">
+      <div class="hero">
+        <div class="hero-text">
+          <h1>Bonjour <span id="hero-name">!</span> 👋</h1>
+          <p>Voici ton tableau de bord. Gagne des centimes et retire-les dès <b>2,00 €</b>.</p>
+        </div>
+        <div class="hero-balance">
+          <div class="big-balance">€ <span id="hero-balance">0,00</span></div>
+          <div class="sub">Solde disponible</div>
+          <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+          <div class="sub small" id="progress-label">0,00 € / 2,00 € pour retirer</div>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="stat-val" id="stat-today">0,00 €</div><div class="stat-label">Gagné aujourd'hui</div></div>
+        <div class="stat"><div class="stat-val" id="stat-total">0,00 €</div><div class="stat-label">Total gagné</div></div>
+        <div class="stat"><div class="stat-val" id="stat-dailycap">5,00 €</div><div class="stat-label">Plafond / jour</div></div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <h2>🎁 Bonus quotidien</h2>
+          <p>Réclame ton bonus de <b>0,05 €</b> chaque jour.</p>
+          <button class="btn-primary" id="claim-bonus-btn">Réclamer le bonus</button>
+        </div>
+        <div class="card">
+          <h2>🎡 Roue de la fortune</h2>
+          <p>Jusqu'à 5 tours par jour. Gagne jusqu'à <b>0,15 €</b> !</p>
+          <button class="btn-primary" id="spin-btn">Lancer la roue</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🏆 Classement des meilleurs gagnants</h2>
+        <ol class="leaderboard" id="leaderboard"></ol>
+      </div>
+    </section>
+
+    <!-- ===== GAGNER ===== -->
+    <section id="tab-earn" class="tab">
+      <h1 class="page-title">🎬 Gagne des euros</h1>
+      <p class="muted">Regarde des publicités, fais des clics sponsorisés et réponds à des sondages.</p>
+      <div class="filter-row">
+        <button class="chip active" data-filter="all">Tout</button>
+        <button class="chip" data-filter="video">🎬 Vidéos</button>
+        <button class="chip" data-filter="ptc">🖱️ Clics</button>
+        <button class="chip" data-filter="survey">📝 Sondages</button>
+      </div>
+      <div class="offer-grid" id="offer-grid"></div>
+    </section>
+
+    <!-- ===== RETRAIT ===== -->
+    <section id="tab-withdraw" class="tab">
+      <h1 class="page-title">💸 Retrait</h1>
+      <p class="muted">Retire tes gains dès <b>2,00 €</b>.</p>
+      <div class="two-col">
+        <div class="card">
+          <h2>Demander un retrait</h2>
+          <div class="field">
+            <label>Montant (€)</label>
+            <input type="number" id="wd-amount" min="2" step="0.01" placeholder="2.00">
+            <div class="sub small">Solde : <span id="wd-balance">0,00 €</span> · Minimum : 2,00 €</div>
+          </div>
+          <div class="field">
+            <label>Méthode</label>
+            <select id="wd-method">
+              <option value="paypal">PayPal</option>
+              <option value="virement">Virement bancaire</option>
+              <option value="crypto">Crypto (USDT)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label id="wd-details-label">Email PayPal</label>
+            <input type="text" id="wd-details" placeholder="ton@email.com">
+          </div>
+          <button class="btn-primary big" id="wd-submit">Envoyer la demande</button>
+        </div>
+        <div class="card">
+          <h2>Mes demandes</h2>
+          <div id="wd-list" class="wd-list"><p class="muted">Aucune demande pour l'instant.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== HISTORIQUE ===== -->
+    <section id="tab-history" class="tab">
+      <h1 class="page-title">📜 Historique</h1>
+      <p class="muted">Tes 15 dernières transactions.</p>
+      <div class="card">
+        <table class="table">
+          <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Montant</th></tr></thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== ADMIN ===== -->
+    <section id="tab-admin" class="tab">
+      <h1 class="page-title">⚙️ Administration</h1>
+      <div class="stat-grid" id="admin-stats">
+        <div class="stat"><div class="stat-val" id="adm-users">—</div><div class="stat-label">Utilisateurs</div></div>
+        <div class="stat"><div class="stat-val" id="adm-pending">—</div><div class="stat-label">Retraits en attente</div></div>
+        <div class="stat"><div class="stat-val" id="adm-paid">—</div><div class="stat-label">Total payé</div></div>
+        <div class="stat"><div class="stat-val" id="adm-earned">—</div><div class="stat-label">Total gagné</div></div>
+      </div>
+
+      <div class="card">
+        <h2>💸 Retraits à traiter</h2>
+        <div id="adm-withdrawals"></div>
+      </div>
+
+      <div class="card">
+        <h2>👥 Utilisateurs</h2>
+        <table class="table">
+          <thead><tr><th>ID</th><th>Pseudo</th><th>Solde</th><th>Gagné</th><th>Action</th></tr></thead>
+          <tbody id="adm-users-body"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>➕ Nouvelle offre</h2>
+        <div class="form-row">
+          <input type="text" id="of-title" placeholder="Titre de l'offre">
+          <select id="of-type">
+            <option value="video">Vidéo</option>
+            <option value="ptc">Clic</option>
+            <option value="survey">Sondage</option>
+          </select>
+          <input type="number" id="of-reward" placeholder="Récompense (centimes)" min="1">
+          <input type="number" id="of-duration" placeholder="Durée (s)" min="0" value="0">
+        </div>
+        <button class="btn-primary" id="of-create">Créer l'offre</button>
+      </div>
+
+      <div class="card">
+        <h2>📦 Offres existantes</h2>
+        <div id="adm-offers"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ MODAL PUB VIDÉO ============ -->
+<div id="video-modal" class="modal hidden">
+  <div class="modal-box">
+    <div class="video-player" id="video-player">
+      <div class="video-inner" id="video-inner">
+        <div class="ad-badge">PUBLICITÉ</div>
+        <div class="video-brand" id="video-brand">🎬</div>
+        <div class="video-title" id="video-title">Chargement…</div>
+        <div class="video-sub">Publicité sponsorisée · Robinet €</div>
+      </div>
+      <div class="video-bar"><div class="video-bar-fill" id="video-bar-fill"></div></div>
+      <div class="video-timer" id="video-timer">0 s</div>
+    </div>
+    <p class="muted" id="video-reward-text">Récompense : —</p>
+    <button class="btn-primary big" id="video-claim" disabled>⏳ Encore en lecture…</button>
+  </div>
+</div>
+
+<!-- ============ MODAL PTC ============ -->
+<div id="ptc-modal" class="modal hidden">
+  <div class="modal-box">
+    <h2>🖱️ Clic sponsorisé</h2>
+    <p id="ptc-title" class="muted">Chargement…</p>
+    <div class="fake-browser">
+      <div class="fb-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="fb-url" id="ptc-url">partenaire-exemple.com</span></div>
+      <div class="fb-body" id="ptc-body">
+        <div class="ad-banner" id="ptc-banner">✨ Site partenaire ✨</div>
+        <h3 id="ptc-headline">Offre partenaire</h3>
+        <p id="ptc-copy">Découvre les offres de nos partenaires…</p>
+      </div>
+    </div>
+    <p class="muted">Reste sur la page <b id="ptc-time">15 s</b> pour valider.</p>
+    <button class="btn-primary big" id="ptc-claim" disabled>⏳ Patiente encore…</button>
+  </div>
+</div>
+
+<!-- ============ MODAL SONDAGE ============ -->
+<div id="survey-modal" class="modal hidden">
+  <div class="modal-box">
+    <h2>📝 <span id="survey-title">Sondage</span></h2>
+    <div id="survey-questions"></div>
+    <button class="btn-primary big" id="survey-submit">Valider mes réponses</button>
+  </div>
+</div>
+
+<!-- ============ MODAL ROUE ============ -->
+<div id="wheel-modal" class="modal hidden">
+  <div class="modal-box center">
+    <h2>🎡 Roue de la fortune</h2>
+    <div class="wheel-wrap">
+      <div class="wheel-pointer">▼</div>
+      <div class="wheel" id="wheel">
+        <div class="seg" style="--r:0deg">0,15</div>
+        <div class="seg" style="--r:30deg">0,01</div>
+        <div class="seg" style="--r:60deg">0,02</div>
+        <div class="seg" style="--r:90deg">0,03</div>
+        <div class="seg" style="--r:120deg">0,05</div>
+        <div class="seg" style="--r:150deg">0,00</div>
+        <div class="seg" style="--r:180deg">0,10</div>
+        <div class="seg" style="--r:210deg">0,01</div>
+        <div class="seg" style="--r:240deg">0,02</div>
+        <div class="seg" style="--r:270deg">0,04</div>
+        <div class="seg" style="--r:300deg">0,01</div>
+        <div class="seg" style="--r:330deg">0,02</div>
+      </div>
+    </div>
+    <div id="wheel-result" class="wheel-result">Lance la roue !</div>
+    <button class="btn-primary big" id="wheel-spin-btn">🎡 Tourner</button>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+# requirements.txt
+# Le projet utilise uniquement la bibliothèque standard de Python.
+# Aucune dépendance externe n'est nécessaire.

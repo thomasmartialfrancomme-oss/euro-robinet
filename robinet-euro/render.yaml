@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: robinet-euro
+    runtime: python
+    plan: free
+    buildCommand: ""
+    startCommand: python3 server.py
