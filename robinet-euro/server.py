@@ -71,11 +71,12 @@ def init_db():
     CREATE TABLE IF NOT EXISTS offers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
-        type TEXT NOT NULL,               -- video | ptc | survey
+        type TEXT NOT NULL,               -- video | ptc | survey | cpa
         reward_cents INTEGER NOT NULL,
         duration_seconds INTEGER DEFAULT 0,
         description TEXT DEFAULT '',
         color TEXT DEFAULT '#6366f1',
+        link TEXT DEFAULT '',
         active INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS sessions (
@@ -148,6 +149,13 @@ def init_db():
     );
     """)
     conn.commit()
+
+    # ---- migration : ajout colonne link si absente ----
+    try:
+        conn.execute("ALTER TABLE offers ADD COLUMN link TEXT DEFAULT ''")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
 
     # ---- seed admin ----
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
@@ -597,6 +605,16 @@ def handle_admin(conn, parts, method, body):
         conn.execute("UPDATE offers SET active=? WHERE id=?", (0 if o["active"] else 1, oid))
         conn.commit()
         return 200, {"active": 0 if o["active"] else 1}
+
+    if sub == "offer_set_link" and method == "POST":
+        oid = body.get("id")
+        link = (body.get("link") or "").strip()
+        o = conn.execute("SELECT * FROM offers WHERE id=?", (oid,)).fetchone()
+        if not o:
+            return 404, {"error": "Offre introuvable."}
+        conn.execute("UPDATE offers SET link=? WHERE id=?", (link, oid))
+        conn.commit()
+        return 200, {"ok": True, "link": link}
 
     return 404, {"error": "Not found"}
 
