@@ -22,15 +22,15 @@ PORT = int(os.environ.get("PORT", 8000))
 
 # ------- Paramètres -------
 MIN_WITHDRAW_CENTS = 200          # 2,00 €
-DAILY_CAP_CENTS = 500             # plafond de gain / jour (5 €)
+DAILY_CAP_CENTS = 100             # plafond de gain / jour (1,00 € au lieu de 5,00 €)
 VIDEO_COOLDOWN_SEC = 45           # délai entre 2 vidéos
-BONUS_CENTS = 5                   # bonus quotidien (0,05 €)
+BONUS_CENTS = 2                   # bonus quotidien (0,02 €)
 WHEEL_SPINS_PER_DAY = 5
-FAUCET_COOLDOWN_SEC = 180         # recharge du robinet (3 minutes)
+FAUCET_COOLDOWN_SEC = 90          # recharge du robinet (1 min 30)
 FAUCET_MIN_CENTS = 1              # gain minimum (0,01 €)
-FAUCET_MAX_CENTS = 5              # gain maximum (0,05 €)
-GAME_MAX_REWARD_CENTS = 10        # gain max par partie (0,10 €)
-GAME_DAILY_CAP_CENTS = 100        # plafond par jeu et par jour (1,00 €)
+FAUCET_MAX_CENTS = 2              # gain maximum (0,02 €)
+GAME_MAX_REWARD_CENTS = 5         # gain max par partie (0,05 €)
+GAME_DAILY_CAP_CENTS = 50         # plafond par jeu et par jour (0,50 €)
 GAMES = ("clicker", "coinflip", "memory")
 
 def now_ms():
@@ -168,15 +168,15 @@ def init_db():
     c.execute("SELECT COUNT(*) FROM offers")
     if c.fetchone()[0] == 0:
         offers = [
-            ("Publicité vidéo — Boisson énergisante", "video", 4, 20, "Regarde la pub jusqu'au bout pour gagner 0,04 €.", "#f59e0b"),
-            ("Publicité vidéo — Appli de shopping", "video", 5, 25, "Regarde la pub jusqu'au bout pour gagner 0,05 €.", "#6366f1"),
-            ("Publicité vidéo — Jeu mobile gratuit", "video", 3, 15, "Regarde la pub jusqu'au bout pour gagner 0,03 €.", "#10b981"),
-            ("Publicité vidéo — Service de streaming", "video", 8, 30, "Regarde la pub jusqu'au bout pour gagner 0,08 €.", "#ec4899"),
-            ("Clic sponsorisé — Boutique partenaire A", "ptc", 2, 15, "Visite la page partenaire pendant 15 s pour gagner 0,02 €.", "#8b5cf6"),
-            ("Clic sponsorisé — Boutique partenaire B", "ptc", 2, 15, "Visite la page partenaire pendant 15 s pour gagner 0,02 €.", "#f97316"),
+            ("Publicité vidéo — Boisson énergisante", "video", 2, 20, "Regarde la pub jusqu'au bout pour gagner 0,02 €.", "#f59e0b"),
+            ("Publicité vidéo — Appli de shopping", "video", 3, 25, "Regarde la pub jusqu'au bout pour gagner 0,03 €.", "#6366f1"),
+            ("Publicité vidéo — Jeu mobile gratuit", "video", 2, 15, "Regarde la pub jusqu'au bout pour gagner 0,02 €.", "#10b981"),
+            ("Publicité vidéo — Service de streaming", "video", 4, 30, "Regarde la pub jusqu'au bout pour gagner 0,04 €.", "#ec4899"),
+            ("Clic sponsorisé — Boutique partenaire A", "ptc", 1, 15, "Visite la page partenaire pendant 15 s pour gagner 0,01 €.", "#8b5cf6"),
+            ("Clic sponsorisé — Boutique partenaire B", "ptc", 1, 15, "Visite la page partenaire pendant 15 s pour gagner 0,01 €.", "#f97316"),
             ("Clic sponsorisé — Site d'actualités", "ptc", 1, 10, "Visite la page partenaire pendant 10 s pour gagner 0,01 €.", "#14b8a6"),
-            ("Sondage rapide — Tes habitudes de consommation", "survey", 6, 0, "Réponds à 3 questions pour gagner 0,06 €.", "#3b82f6"),
-            ("Sondage — La musique que tu écoutes", "survey", 5, 0, "Réponds à 3 questions pour gagner 0,05 €.", "#a855f7"),
+            ("Sondage rapide — Tes habitudes de consommation", "survey", 3, 0, "Réponds à 3 questions pour gagner 0,03 €.", "#3b82f6"),
+            ("Sondage — La musique que tu écoutes", "survey", 3, 0, "Réponds à 3 questions pour gagner 0,03 €.", "#a855f7"),
             ("Offre partenaire — Installe l'appli de cashback", "cpa", 150, 0, "Installe l'appli partenaire et ouvre-la pour gagner 1,50 €.", "#0ea5e9"),
             ("Offre partenaire — Inscris-toi au site de sondages", "cpa", 100, 0, "Crée un compte sur le site partenaire pour gagner 1,00 €.", "#0ea5e9"),
             ("Offre partenaire — Essaie le service de streaming", "cpa", 200, 0, "Essaie le service partenaire (gratuit) pour gagner 2,00 €.", "#0ea5e9"),
@@ -254,13 +254,13 @@ def handle_api(conn, path, method, body, token):
             conn.commit()
             uid = cur.lastrowid
             # bonus de bienvenue
-            conn.execute("UPDATE users SET balance_cents=balance_cents+10, total_earned_cents=total_earned_cents+10 WHERE id=?", (uid,))
-            add_transaction(conn, uid, "earn", 10, "Bonus de bienvenue")
+            conn.execute("UPDATE users SET balance_cents=balance_cents+5, total_earned_cents=total_earned_cents+5 WHERE id=?", (uid,))
+            add_transaction(conn, uid, "earn", 5, "Bonus de bienvenue")
             conn.commit()
             tok = secrets.token_hex(24)
             conn.execute("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)", (tok, uid, now_ms()))
             conn.commit()
-            return 200, {"token": tok, "message": "Compte créé ! +0,10 € offert."}
+            return 200, {"token": tok, "message": "Compte créé ! +0,05 € offert."}
         except sqlite3.IntegrityError:
             return 400, {"error": "Ce nom d'utilisateur est déjà pris."}
 
@@ -410,7 +410,7 @@ def handle_api(conn, path, method, body, token):
             return 429, {"error": f"Plus que {WHEEL_SPINS_PER_DAY} tours par jour."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
             return 429, {"error": "Plafond journalier atteint (5,00 €)."}
-        rewards = [0, 1, 2, 3, 5, 10, 2, 1, 4, 1, 2, 15]  # en cents
+        rewards = [0, 1, 2, 1, 3, 5, 1, 2, 1, 2, 1, 3]  # en cents (max 0,05 €)
         reward = random.choice(rewards)
         conn.execute("INSERT INTO wheel_spins(user_id,spun_at,reward_cents) VALUES(?,?,?)", (u["id"], now_ms(), reward))
         if reward > 0:
