@@ -134,7 +134,7 @@ def init_db():
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO users(username,email,password,balance_cents,is_admin,created_at) VALUES(?,?,?,?,?,?)",
-                  ("admin", "admin@robinet-euro.fr", hash_pw("admin123"), 0, 1, now_ms()))
+                  ("admin", "admin@robinet-euro.fr", hash_pw("Robinet974"), 0, 1, now_ms()))
         conn.commit()
 
     # ---- seed offers ----
