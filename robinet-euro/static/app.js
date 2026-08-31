@@ -443,9 +443,20 @@ function openCpa(o) {
   m.classList.remove("hidden");
   document.getElementById("cpa-title").textContent = o.title;
   document.getElementById("cpa-headline").textContent = o.title;
-  document.getElementById("cpa-url").textContent = slug(o.title) + ".com";
+  document.getElementById("cpa-url").textContent = o.link ? hostOf(o.link) : slug(o.title) + ".com";
   document.getElementById("cpa-banner").textContent = "✨ " + o.title + " ✨";
   document.getElementById("cpa-copy").textContent = "Action à réaliser chez le partenaire. Récompense : +" + eur(o.reward_cents);
+
+  const openBtn = document.getElementById("cpa-open");
+  if (o.link) {
+    openBtn.style.display = "block";
+    openBtn.onclick = () => window.open(o.link, "_blank");
+    document.getElementById("cpa-note").textContent = "1) Ouvre l'offre partenaire (nouvel onglet) · 2) fais l'action · 3) reviens valider ici.";
+  } else {
+    openBtn.style.display = "none";
+    document.getElementById("cpa-note").textContent = "Clique ci-dessous pour valider (démonstration).";
+  }
+
   document.getElementById("cpa-claim").onclick = async () => {
     try {
       const r = await API.post("complete_cpa", { offer_id: o.id });
@@ -760,6 +771,22 @@ async function loadAdmin() {
       toggle.textContent = o.active ? "Désactiver" : "Activer";
       toggle.onclick = async () => { await API.post("admin/offer_toggle", { id: o.id }); loadAdmin(); };
       row.appendChild(toggle);
+      if (o.type === "cpa") {
+        const linkBtn = document.createElement("button");
+        linkBtn.className = "btn-sm";
+        linkBtn.style.marginLeft = "6px";
+        linkBtn.textContent = o.link ? "🔗 Lien ✓" : "🔗 Ajouter lien";
+        linkBtn.onclick = async () => {
+          const link = prompt("Colle le lien d'affiliation pour :\n" + o.title, o.link || "");
+          if (link === null) return;
+          try {
+            await API.post("admin/offer_set_link", { id: o.id, link: link.trim() });
+            toast("Lien enregistré !");
+            loadAdmin();
+          } catch (ex) { toast(ex.message, "err"); }
+        };
+        row.appendChild(linkBtn);
+      }
       ob.appendChild(row);
     });
   } catch (e) { toast(e.message, "err"); }
@@ -786,6 +813,9 @@ function escapeHtml(s) {
 }
 function slug(s) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+function hostOf(url) {
+  try { return new URL(url).hostname; } catch (e) { return url; }
 }
 
 // ===== modal close on backdrop =====
