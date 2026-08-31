@@ -171,8 +171,8 @@ function renderOffers(list) {
   filtered.forEach((o) => {
     const el = document.createElement("div");
     el.className = "offer" + (o.done ? " done" : "");
-    const icon = o.type === "video" ? "🎬" : o.type === "ptc" ? "🖱️" : "📝";
-    const typeLabel = o.type === "video" ? "Vidéo" : o.type === "ptc" ? "Clic" : "Sondage";
+    const icon = o.type === "video" ? "🎬" : o.type === "ptc" ? "🖱️" : o.type === "cpa" ? "🤝" : "📝";
+    const typeLabel = o.type === "video" ? "Vidéo" : o.type === "ptc" ? "Clic" : o.type === "cpa" ? "Partenaire" : "Sondage";
     el.innerHTML = `
       <div class="offer-icon">${icon}</div>
       <div class="offer-title">${escapeHtml(o.title)}</div>
@@ -185,6 +185,7 @@ function renderOffers(list) {
     el.querySelector(".offer-btn").addEventListener("click", () => {
       if (o.type === "video") openVideo(o);
       else if (o.type === "ptc") openPtc(o);
+      else if (o.type === "cpa") openCpa(o);
       else openSurvey(o);
     });
     grid.appendChild(el);
@@ -436,6 +437,147 @@ document.getElementById("faucet-btn").addEventListener("click", async () => {
   updateFaucetUI();
 });
 
+// ===== OFFRES PARTENAIRES (CPA) =====
+function openCpa(o) {
+  const m = document.getElementById("cpa-modal");
+  m.classList.remove("hidden");
+  document.getElementById("cpa-title").textContent = o.title;
+  document.getElementById("cpa-headline").textContent = o.title;
+  document.getElementById("cpa-url").textContent = slug(o.title) + ".com";
+  document.getElementById("cpa-banner").textContent = "✨ " + o.title + " ✨";
+  document.getElementById("cpa-copy").textContent = "Action à réaliser chez le partenaire. Récompense : +" + eur(o.reward_cents);
+  document.getElementById("cpa-claim").onclick = async () => {
+    try {
+      const r = await API.post("complete_cpa", { offer_id: o.id });
+      m.classList.add("hidden");
+      toast("+" + eur(r.reward) + " gagné via le partenaire ! 🎉", "gold");
+      await refresh();
+    } catch (ex) {
+      m.classList.add("hidden");
+      toast(ex.message, "err");
+    }
+  };
+}
+
+// ===== JEUX =====
+// --- Clicker ---
+let clickerActive = false, clickerClicks = 0, clickerTimer = null;
+document.getElementById("clicker-start").addEventListener("click", () => {
+  if (clickerActive) return;
+  clickerActive = true; clickerClicks = 0;
+  const btn = document.getElementById("clicker-start");
+  btn.disabled = true;
+  document.getElementById("clicker-count").textContent = "0 clics";
+  let time = 15;
+  document.getElementById("clicker-time").textContent = time + " s";
+  clickerTimer = setInterval(() => {
+    time--;
+    document.getElementById("clicker-time").textContent = time + " s";
+    if (time <= 0) {
+      clearInterval(clickerTimer);
+      clickerActive = false;
+      btn.disabled = false;
+      btn.textContent = "▶️ Rejouer";
+      finishClicker();
+    }
+  }, 1000);
+});
+document.getElementById("clicker-coin").addEventListener("click", () => {
+  if (!clickerActive) return;
+  clickerClicks++;
+  document.getElementById("clicker-count").textContent = clickerClicks + " clics";
+});
+async function finishClicker() {
+  const score = Math.min(clickerClicks, 10);
+  try {
+    const r = await API.post("play_game", { game: "clicker", score });
+    toast("Clicker : +" + eur(r.reward) + " gagné ! 🎉", "gold");
+  } catch (ex) { toast(ex.message, "err"); }
+  await refresh();
+}
+
+// --- Pile ou Face ---
+async function playCoinflip(choice) {
+  const coin = document.getElementById("coinflip-coin");
+  const result = document.getElementById("coinflip-result");
+  coin.classList.remove("flip");
+  void coin.offsetWidth;
+  coin.classList.add("flip");
+  const win = Math.random() < 0.5;
+  result.className = "coinflip-result";
+  if (win) {
+    result.textContent = "🎉 Gagné ! +0,05 €";
+    result.classList.add("win");
+    try {
+      const r = await API.post("play_game", { game: "coinflip", score: 5 });
+      toast("Pile ou Face : +" + eur(r.reward) + " !", "gold");
+    } catch (ex) { toast(ex.message, "err"); }
+  } else {
+    result.textContent = "😕 Perdu… réessaie !";
+    result.classList.add("lose");
+    try { await API.post("play_game", { game: "coinflip", score: 0 }); } catch (e) {}
+  }
+  await refresh();
+}
+document.getElementById("cf-pile").addEventListener("click", () => playCoinflip("pile"));
+document.getElementById("cf-face").addEventListener("click", () => playCoinflip("face"));
+
+// --- Memory ---
+const MEMO_EMOJIS = ["🍎","🚗","🌟","🐱","🎵","⚽"];
+let memoCards = [], memoFlipped = [], memoMoves = 0, memoPairs = 0;
+function buildMemory() {
+  memoMoves = 0; memoPairs = 0; memoFlipped = [];
+  memoCards = [...MEMO_EMOJIS, ...MEMO_EMOJIS].sort(() => Math.random() - 0.5);
+  const grid = document.getElementById("memory-grid");
+  grid.innerHTML = "";
+  document.getElementById("memory-status").textContent = "Coups : 0";
+  memoCards.forEach((emoji, i) => {
+    const c = document.createElement("div");
+    c.className = "memory-card";
+    c.dataset.index = i;
+    c.textContent = "❓";
+    c.addEventListener("click", () => flipMemory(c, i, emoji));
+    grid.appendChild(c);
+  });
+}
+function flipMemory(el, i, emoji) {
+  if (memoFlipped.length >= 2 || el.classList.contains("flipped") || el.classList.contains("matched")) return;
+  el.textContent = emoji;
+  el.classList.add("flipped");
+  memoFlipped.push({ el, i, emoji });
+  if (memoFlipped.length === 2) {
+    memoMoves++;
+    document.getElementById("memory-status").textContent = "Coups : " + memoMoves;
+    const [a, b] = memoFlipped;
+    if (a.emoji === b.emoji) {
+      a.el.classList.add("matched");
+      b.el.classList.add("matched");
+      memoFlipped = [];
+      memoPairs++;
+      if (memoPairs === MEMO_EMOJIS.length) finishMemory();
+    } else {
+      setTimeout(() => {
+        a.el.textContent = "❓"; a.el.classList.remove("flipped");
+        b.el.textContent = "❓"; b.el.classList.remove("flipped");
+        memoFlipped = [];
+      }, 700);
+    }
+  }
+}
+async function finishMemory() {
+  // moins de coups = plus de gain : 6 paires => min 6 coups (parfait) = 10 cents, plus de coups = moins
+  const perfect = MEMO_EMOJIS.length;
+  const score = Math.max(1, Math.min(10, perfect + (perfect + 6) - memoMoves));
+  document.getElementById("memory-status").textContent = "✅ Gagné en " + memoMoves + " coups !";
+  try {
+    const r = await API.post("play_game", { game: "memory", score });
+    toast("Memory : +" + eur(r.reward) + " gagné ! 🎉", "gold");
+  } catch (ex) { toast(ex.message, "err"); }
+  await refresh();
+}
+document.getElementById("memory-start").addEventListener("click", buildMemory);
+buildMemory();
+
 // ===== BONUS =====
 document.getElementById("claim-bonus-btn").addEventListener("click", async () => {
   try {
@@ -647,7 +789,7 @@ function slug(s) {
 }
 
 // ===== modal close on backdrop =====
-["video-modal", "ptc-modal", "survey-modal"].forEach((id) => {
+["video-modal", "ptc-modal", "survey-modal", "cpa-modal"].forEach((id) => {
   document.getElementById(id).addEventListener("click", (e) => {
     if (e.target.id === id) document.getElementById(id).classList.add("hidden");
   });
