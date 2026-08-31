@@ -102,6 +102,30 @@
     <section id="tab-earn" class="tab">
       <h1 class="page-title">🎬 Gagne des euros</h1>
       <p class="muted">Regarde des publicités, fais des clics sponsorisés et réponds à des sondages.</p>
+
+      <!-- ROBINET € -->
+      <div class="faucet-card">
+        <div class="faucet-left">
+          <div class="faucet-scene">
+            <div class="faucet-pipe">🚰</div>
+            <div class="faucet-stream" id="faucet-stream">
+              <span class="drop">💧</span><span class="drop">💧</span><span class="drop">💧</span>
+            </div>
+            <div class="faucet-bowl" id="faucet-bowl">🪙</div>
+          </div>
+        </div>
+        <div class="faucet-right">
+          <h2>💧 Le Robinet €</h2>
+          <p class="muted">Ouvre le robinet pour gagner une petite somme <b>à chaque fois</b>, en continu !</p>
+          <div class="faucet-info">
+            <span class="faucet-reward-range">🎁 de <b id="faucet-min">0,01 €</b> à <b id="faucet-max">0,05 €</b> par ouverture</span>
+            <span class="faucet-cooldown">⏱️ toutes les <b id="faucet-cd">3 min</b></span>
+          </div>
+          <button class="faucet-btn" id="faucet-btn">💧 Ouvrir le robinet</button>
+          <div class="faucet-timer" id="faucet-timer"></div>
+        </div>
+      </div>
+
       <div class="filter-row">
         <button class="chip active" data-filter="all">Tout</button>
         <button class="chip" data-filter="video">🎬 Vidéos</button>
