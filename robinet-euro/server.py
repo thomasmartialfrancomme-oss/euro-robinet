@@ -319,6 +319,10 @@ def handle_api(conn, path, method, body, token):
         o = conn.execute("SELECT * FROM offers WHERE id=? AND type='video' AND active=1", (offer_id,)).fetchone()
         if not o:
             return 404, {"error": "Offre introuvable."}
+        # déjà regardée ? une seule fois par vidéo
+        already = conn.execute("SELECT 1 FROM video_views WHERE user_id=? AND offer_id=?", (u["id"], o["id"])).fetchone()
+        if already:
+            return 429, {"error": "Tu as déjà regardé cette vidéo."}
         # cooldown
         last = conn.execute("SELECT completed_at FROM video_views WHERE user_id=? ORDER BY completed_at DESC LIMIT 1",
                             (u["id"],)).fetchone()
@@ -661,6 +665,9 @@ def offer_payload(conn, u, o):
         last = conn.execute("SELECT clicked_at FROM ptc_clicks WHERE user_id=? AND offer_id=? ORDER BY clicked_at DESC LIMIT 1",
                             (u["id"], o["id"])).fetchone()
         p["done"] = bool(last and (now_ms() - last["clicked_at"]) < 24 * 3600 * 1000)
+    elif o["type"] == "video":
+        last = conn.execute("SELECT 1 FROM video_views WHERE user_id=? AND offer_id=?", (u["id"], o["id"])).fetchone()
+        p["done"] = bool(last)
     elif o["type"] == "cpa":
         last = conn.execute("SELECT 1 FROM ptc_clicks WHERE user_id=? AND offer_id=?", (u["id"], o["id"])).fetchone()
         p["done"] = bool(last)
