@@ -141,6 +141,10 @@ function renderDashboard(d) {
   // offres
   renderOffers(d.offers);
 
+  // robinet
+  if (d.faucet) setupFaucet(d.faucet);
+  startFaucetTimer();
+
   // historique
   renderHistory(d.recent);
 
@@ -337,6 +341,100 @@ function openSurvey(o) {
     }
   };
 }
+
+// ===== ROBINET € =====
+let faucetCooldown = 180;      // secondes
+let faucetLastClaim = 0;       // timestamp ms du dernier claim
+let faucetInterval = null;
+let faucetBusy = false;
+
+function fmtSec(s) {
+  s = Math.max(0, Math.round(s));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m > 0 ? `${m} min ${String(r).padStart(2, "0")} s` : `${r} s`;
+}
+
+function setupFaucet(faucet) {
+  faucetCooldown = faucet.cooldown || 180;
+  faucetLastClaim = faucet.last_claim || 0;
+  document.getElementById("faucet-min").textContent = eur(faucet.min || 1);
+  document.getElementById("faucet-max").textContent = eur(faucet.max || 5);
+  document.getElementById("faucet-cd").textContent = fmtSec(faucetCooldown);
+  updateFaucetUI();
+}
+
+function faucetRemaining() {
+  const elapsed = (Date.now() - faucetLastClaim) / 1000;
+  return faucetCooldown - elapsed;
+}
+
+function updateFaucetUI() {
+  const btn = document.getElementById("faucet-btn");
+  const timer = document.getElementById("faucet-timer");
+  const stream = document.getElementById("faucet-stream");
+  const remain = faucetRemaining();
+  if (remain <= 0) {
+    btn.disabled = false;
+    btn.textContent = "💧 Ouvrir le robinet";
+    timer.textContent = "✅ Le robinet est prêt ! Clique pour gagner.";
+    timer.className = "faucet-timer ready";
+    stream.classList.add("on");
+  } else {
+    btn.disabled = true;
+    btn.textContent = "⏳ Rechargement…";
+    timer.textContent = "Prochaine ouverture dans " + fmtSec(remain) + ".";
+    timer.className = "faucet-timer";
+    stream.classList.remove("on");
+  }
+}
+
+function startFaucetTimer() {
+  if (faucetInterval) clearInterval(faucetInterval);
+  faucetInterval = setInterval(updateFaucetUI, 1000);
+}
+
+function spawnCoins() {
+  const bowl = document.getElementById("faucet-bowl");
+  const rect = bowl.getBoundingClientRect();
+  const card = document.querySelector(".faucet-card");
+  const emojis = ["🪙", "💶", "💶", "🪙", "✨"];
+  for (let i = 0; i < 8; i++) {
+    setTimeout(() => {
+      const c = document.createElement("span");
+      c.className = "coin-fall";
+      c.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      c.style.left = (rect.left - card.getBoundingClientRect().left + 20 + Math.random() * 30) + "px";
+      c.style.top = (rect.top - card.getBoundingClientRect().top) + "px";
+      card.appendChild(c);
+      setTimeout(() => c.remove(), 1200);
+    }, i * 90);
+  }
+}
+
+document.getElementById("faucet-btn").addEventListener("click", async () => {
+  if (faucetBusy) return;
+  faucetBusy = true;
+  const btn = document.getElementById("faucet-btn");
+  btn.disabled = true;
+  btn.textContent = "💧 Ouverture…";
+  try {
+    const r = await API.post("claim_faucet");
+    faucetLastClaim = Date.now();
+    spawnCoins();
+    const timer = document.getElementById("faucet-timer");
+    timer.textContent = `🎉 Tu as gagné ${eur(r.reward)} ! Reviens dans ${fmtSec(r.cooldown)}.`;
+    timer.className = "faucet-timer ready";
+    toast("Robinet : +" + eur(r.reward) + " gagné ! 🎉", "gold");
+    await refresh();
+  } catch (ex) {
+    toast(ex.message, "err");
+    // re-synchroniser
+    await refresh();
+  }
+  faucetBusy = false;
+  updateFaucetUI();
+});
 
 // ===== BONUS =====
 document.getElementById("claim-bonus-btn").addEventListener("click", async () => {
