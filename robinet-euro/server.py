@@ -29,6 +29,9 @@ WHEEL_SPINS_PER_DAY = 5
 FAUCET_COOLDOWN_SEC = 180         # recharge du robinet (3 minutes)
 FAUCET_MIN_CENTS = 1              # gain minimum (0,01 €)
 FAUCET_MAX_CENTS = 5              # gain maximum (0,05 €)
+GAME_MAX_REWARD_CENTS = 10        # gain max par partie (0,10 €)
+GAME_DAILY_CAP_CENTS = 100        # plafond par jeu et par jour (1,00 €)
+GAMES = ("clicker", "coinflip", "memory")
 
 def now_ms():
     return int(time.time() * 1000)
@@ -119,6 +122,13 @@ def init_db():
         claimed_at INTEGER NOT NULL,
         reward_cents INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS game_plays (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        game TEXT NOT NULL,
+        played_at INTEGER NOT NULL,
+        reward_cents INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -159,6 +169,9 @@ def init_db():
             ("Clic sponsorisé — Site d'actualités", "ptc", 1, 10, "Visite la page partenaire pendant 10 s pour gagner 0,01 €.", "#14b8a6"),
             ("Sondage rapide — Tes habitudes de consommation", "survey", 6, 0, "Réponds à 3 questions pour gagner 0,06 €.", "#3b82f6"),
             ("Sondage — La musique que tu écoutes", "survey", 5, 0, "Réponds à 3 questions pour gagner 0,05 €.", "#a855f7"),
+            ("Offre partenaire — Installe l'appli de cashback", "cpa", 150, 0, "Installe l'appli partenaire et ouvre-la pour gagner 1,50 €.", "#0ea5e9"),
+            ("Offre partenaire — Inscris-toi au site de sondages", "cpa", 100, 0, "Crée un compte sur le site partenaire pour gagner 1,00 €.", "#0ea5e9"),
+            ("Offre partenaire — Essaie le service de streaming", "cpa", 200, 0, "Essaie le service partenaire (gratuit) pour gagner 2,00 €.", "#0ea5e9"),
         ]
         for o in offers:
             c.execute("INSERT INTO offers(title,type,reward_cents,duration_seconds,description,color) VALUES(?,?,?,?,?,?)", o)
@@ -419,6 +432,56 @@ def handle_api(conn, path, method, body, token):
         conn.commit()
         return 200, {"reward": reward, "balance": balance(conn, u["id"]), "cooldown": FAUCET_COOLDOWN_SEC}
 
+    if endpoint == "play_game" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        game = body.get("game")
+        score = int(body.get("score") or 0)
+        if game not in GAMES:
+            return 404, {"error": "Jeu inconnu."}
+        score = max(0, min(score, GAME_MAX_REWARD_CENTS))
+        day_start = now_ms() - (now_ms() % (86400 * 1000))
+        earned_game = conn.execute("SELECT COALESCE(SUM(reward_cents),0) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
+                                   (u["id"], game, day_start)).fetchone()[0]
+        remaining = GAME_DAILY_CAP_CENTS - earned_game
+        if remaining <= 0:
+            return 429, {"error": f"Plafond du jeu atteint pour aujourd'hui. Reviens demain !"}
+        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
+            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
+        reward = min(score, remaining)
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], game, now_ms(), reward))
+        if reward > 0:
+            conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                         (reward, reward, u["id"]))
+            add_transaction(conn, u["id"], "earn", reward, f"Jeu : {game}")
+        conn.commit()
+        return 200, {"reward": reward, "balance": balance(conn, u["id"])}
+
+    if endpoint == "complete_cpa" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        offer_id = body.get("offer_id")
+        o = conn.execute("SELECT * FROM offers WHERE id=? AND type='cpa' AND active=1", (offer_id,)).fetchone()
+        if not o:
+            return 404, {"error": "Offre introuvable."}
+        last = conn.execute("SELECT clicked_at FROM ptc_clicks WHERE user_id=? AND offer_id=?",
+                            (u["id"], o["id"])).fetchone()
+        if last:
+            return 429, {"error": "Tu as déjà fait cette offre."}
+        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
+            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
+        reward = o["reward_cents"]
+        conn.execute("INSERT INTO ptc_clicks(user_id,offer_id,clicked_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], o["id"], now_ms(), reward))
+        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                     (reward, reward, u["id"]))
+        add_transaction(conn, u["id"], "earn", reward, f"Partenaire : {o['title']}")
+        conn.commit()
+        return 200, {"reward": reward, "balance": balance(conn, u["id"])}
+
     # ---- WITHDRAWALS ----
     if endpoint == "withdrawals" and method == "GET":
         u = require_auth(conn, token)
@@ -557,6 +620,9 @@ def offer_payload(conn, u, o):
         last = conn.execute("SELECT clicked_at FROM ptc_clicks WHERE user_id=? AND offer_id=? ORDER BY clicked_at DESC LIMIT 1",
                             (u["id"], o["id"])).fetchone()
         p["done"] = bool(last and (now_ms() - last["clicked_at"]) < 24 * 3600 * 1000)
+    elif o["type"] == "cpa":
+        last = conn.execute("SELECT 1 FROM ptc_clicks WHERE user_id=? AND offer_id=?", (u["id"], o["id"])).fetchone()
+        p["done"] = bool(last)
     elif o["type"] == "survey":
         last = conn.execute("SELECT 1 FROM survey_answers WHERE user_id=? AND survey_id=?", (u["id"], o["id"])).fetchone()
         p["done"] = bool(last)
