@@ -1652,9 +1652,20 @@ document.getElementById("intro-video").addEventListener("ended", () => {
 document.getElementById("intro-claim").addEventListener("click", () => closeIntro());
 document.getElementById("intro-skip").addEventListener("click", () => closeIntro());
 
-document.getElementById("open-ad-continue").addEventListener("click", () => {
-  document.getElementById("open-ad").classList.add("hidden");
-});
+(function () {
+  const overlay = document.getElementById("open-ad");
+  const timer = document.getElementById("open-ad-timer");
+  if (!overlay) return;
+  let left = 12;
+  const iv = setInterval(() => {
+    left -= 1;
+    if (timer) timer.textContent = Math.max(0, left) + " s";
+    if (left <= 0) {
+      clearInterval(iv);
+      overlay.classList.add("hidden");
+    }
+  }, 1000);
+})();
 
 // ===== boot =====
 (async function boot() {
