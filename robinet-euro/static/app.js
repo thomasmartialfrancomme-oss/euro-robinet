@@ -43,10 +43,52 @@ function showAuth() {
   document.getElementById("app").classList.add("hidden");
   document.getElementById("auth-screen").classList.remove("hidden");
 }
+
 function showApp() {
   document.getElementById("auth-screen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
 }
+
+// ===== PUB OBLIGATOIRE AVANT CHAQUE TÂCHE =====
+const AD_DIRECT = "https://www.profitableratecpmnetwork.com/ba1q7dmk54?key=80d72180ffff8ff8d516545b27eab7c5";
+const AD_SECONDS = 15;
+let adGateBusy = false;
+
+function waitAd() {
+  return new Promise((resolve) => {
+    if (adGateBusy) { resolve(false); return; }
+    adGateBusy = true;
+    const modal = document.getElementById("ad-gate-modal");
+    const btn = document.getElementById("ad-gate-continue");
+    const timer = document.getElementById("ad-gate-timer");
+    const frame = document.getElementById("ad-gate-frame");
+    modal.classList.remove("hidden");
+    btn.disabled = true;
+    btn.textContent = "⏳ Regarde la pub…";
+    frame.src = "ad-gate.html?t=" + Date.now();
+    try { window.open(AD_DIRECT, "_blank", "noopener,noreferrer"); } catch (e) {}
+    let left = AD_SECONDS;
+    timer.textContent = left + " s";
+    const iv = setInterval(() => {
+      left -= 1;
+      timer.textContent = Math.max(0, left) + " s";
+      if (left <= 0) {
+        clearInterval(iv);
+        btn.disabled = false;
+        btn.textContent = "✅ Continuer";
+      }
+    }, 1000);
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      clearInterval(iv);
+      frame.src = "about:blank";
+      modal.classList.add("hidden");
+      adGateBusy = false;
+      resolve(true);
+    };
+  });
+}
+
 
 // ===== AUTH =====
 let authMode = "login";
@@ -182,7 +224,8 @@ function renderOffers(list) {
         <button class="offer-btn" ${o.done ? "disabled" : ""}>${o.done ? "✓ Fait" : "Commencer"}</button>
       </div>
     `;
-    el.querySelector(".offer-btn").addEventListener("click", () => {
+    el.querySelector(".offer-btn").addEventListener("click", async () => {
+      if (!(await waitAd())) return;
       if (o.type === "video") openVideo(o);
       else if (o.type === "ptc") openPtc(o);
       else if (o.type === "cpa") openCpa(o);
@@ -415,6 +458,8 @@ function spawnCoins() {
 
 document.getElementById("faucet-btn").addEventListener("click", async () => {
   if (faucetBusy) return;
+  if (!(await waitAd())) return;
+  if (faucetBusy) return;
   faucetBusy = true;
   const btn = document.getElementById("faucet-btn");
   btn.disabled = true;
@@ -473,7 +518,9 @@ function openCpa(o) {
 // ===== JEUX =====
 // --- Clicker ---
 let clickerActive = false, clickerClicks = 0, clickerTimer = null;
-document.getElementById("clicker-start").addEventListener("click", () => {
+document.getElementById("clicker-start").addEventListener("click", async () => {
+  if (clickerActive) return;
+  if (!(await waitAd())) return;
   if (clickerActive) return;
   clickerActive = true; clickerClicks = 0;
   const btn = document.getElementById("clicker-start");
@@ -510,6 +557,8 @@ async function finishClicker() {
 // --- Pile ou Face ---
 let coinflipBusy = false;
 async function playCoinflip(choice) {
+  if (coinflipBusy) return;
+  if (!(await waitAd())) return;
   if (coinflipBusy) return;
   coinflipBusy = true;
   const coin = document.getElementById("coinflip-coin");
@@ -607,7 +656,10 @@ async function finishMemory() {
   await refresh();
 }
 
-document.getElementById("memory-start").addEventListener("click", buildMemory);
+document.getElementById("memory-start").addEventListener("click", async () => {
+  if (!(await waitAd())) return;
+  buildMemory();
+});
 buildMemory();
 
 // ===== JEUX À MISE =====
@@ -639,6 +691,7 @@ async function playStake(game, choice, stakeName, resultId, onResult) {
 // --- Dé ---
 const DICE_EMOJI = { 1:"⚀", 2:"⚁", 3:"⚂", 4:"⚃", 5:"⚄", 6:"⚅" };
 async function playDice(choice) {
+  if (!(await waitAd())) return;
   setBusy(["dice-even","dice-odd"], true);
   const face = document.getElementById("dice-face");
   const box = document.getElementById("dice-result");
@@ -667,6 +720,7 @@ document.getElementById("dice-odd").addEventListener("click", () => playDice("od
 // --- Chifoumi ---
 const RPS_EMOJI = { pierre:"✊", feuille:"✋", ciseaux:"✌️" };
 async function playRps(choice) {
+  if (!(await waitAd())) return;
   setBusy(["rps-pierre","rps-feuille","rps-ciseaux"], true);
   document.getElementById("rps-you").textContent = RPS_EMOJI[choice];
   document.getElementById("rps-cpu").textContent = "❔";
@@ -698,6 +752,8 @@ document.getElementById("rps-ciseaux").addEventListener("click", () => playRps("
 const SLOT_SYM = ["🍒","🍋","🍇","🔔","⭐","7️⃣"];
 let slotsBusy = false;
 document.getElementById("slots-spin").addEventListener("click", async () => {
+  if (slotsBusy) return;
+  if (!(await waitAd())) return;
   if (slotsBusy) return;
   slotsBusy = true;
   const btn = document.getElementById("slots-spin");
@@ -733,6 +789,7 @@ document.getElementById("slots-spin").addEventListener("click", async () => {
 
 // --- Rouge / Noir ---
 async function playColor(choice) {
+  if (!(await waitAd())) return;
   setBusy(["color-rouge","color-noir"], true);
   const ball = document.getElementById("color-ball");
   const box = document.getElementById("color-result");
@@ -761,6 +818,7 @@ document.getElementById("color-noir").addEventListener("click", () => playColor(
 
 // ===== BONUS =====
 document.getElementById("claim-bonus-btn").addEventListener("click", async () => {
+  if (!(await waitAd())) return;
   try {
     const r = await API.post("claim_bonus");
     toast("Bonus de +" + eur(r.reward) + " réclamé ! 🎁", "gold");
@@ -776,6 +834,8 @@ document.getElementById("spin-btn").addEventListener("click", () => {
   document.getElementById("wheel-result").textContent = "Lance la roue !";
 });
 document.getElementById("wheel-spin-btn").addEventListener("click", async () => {
+  if (spinning) return;
+  if (!(await waitAd())) return;
   if (spinning) return;
   spinning = true;
   document.getElementById("wheel-result").textContent = "…";
