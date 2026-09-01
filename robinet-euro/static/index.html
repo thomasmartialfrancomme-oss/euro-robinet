@@ -145,7 +145,7 @@
     <!-- ===== JEUX ===== -->
     <section id="tab-games" class="tab">
       <h1 class="page-title">🎮 Jeux — gagne des pièces en jouant</h1>
-      <p class="muted">Joue à nos mini-jeux et gagne de l'argent à chaque partie !</p>
+      <p class="muted">Jeux gratuits, ou mise tes centimes : tu gagnes ou tu perds selon le résultat.</p>
 
       <div class="game-grid">
         <!-- CLICKER -->
@@ -186,6 +186,88 @@
             <div class="memory-status" id="memory-status">Coups : 0</div>
           </div>
           <button class="game-btn" id="memory-start">▶️ Nouvelle partie</button>
+        </div>
+
+        <!-- DÉ -->
+        <div class="game-card" id="game-dice">
+          <div class="game-icon">🎲</div>
+          <h3>Dé pair ou impair</h3>
+          <p class="muted">Mise, choisis pair ou impair. Si le dé tombe du bon côté, tu gagnes ta mise ; sinon tu la perds.</p>
+          <div class="stake-row" data-stake="dice">
+            <span class="muted">Mise</span>
+            <label class="stake-chip"><input type="radio" name="stake-dice" value="2"> 0,02 €</label>
+            <label class="stake-chip"><input type="radio" name="stake-dice" value="5" checked> 0,05 €</label>
+            <label class="stake-chip"><input type="radio" name="stake-dice" value="10"> 0,10 €</label>
+          </div>
+          <div class="dice-face" id="dice-face">🎲</div>
+          <div class="coinflip-buttons">
+            <button class="game-btn small" id="dice-even">Pair</button>
+            <button class="game-btn small" id="dice-odd">Impair</button>
+          </div>
+          <div class="coinflip-result" id="dice-result"></div>
+        </div>
+
+        <!-- CHIFOUMI -->
+        <div class="game-card" id="game-rps">
+          <div class="game-icon">✊</div>
+          <h3>Pierre · Feuille · Ciseaux</h3>
+          <p class="muted">Mise contre le site. Gagné = +mise, perdu = −mise, égalité = 0.</p>
+          <div class="stake-row">
+            <span class="muted">Mise</span>
+            <label class="stake-chip"><input type="radio" name="stake-rps" value="2"> 0,02 €</label>
+            <label class="stake-chip"><input type="radio" name="stake-rps" value="5" checked> 0,05 €</label>
+            <label class="stake-chip"><input type="radio" name="stake-rps" value="10"> 0,10 €</label>
+          </div>
+          <div class="rps-arena">
+            <span id="rps-you">❔</span>
+            <span class="muted">vs</span>
+            <span id="rps-cpu">❔</span>
+          </div>
+          <div class="coinflip-buttons">
+            <button class="game-btn small" id="rps-pierre">✊ Pierre</button>
+            <button class="game-btn small" id="rps-feuille">✋ Feuille</button>
+            <button class="game-btn small" id="rps-ciseaux">✌️ Ciseaux</button>
+          </div>
+          <div class="coinflip-result" id="rps-result"></div>
+        </div>
+
+        <!-- SLOTS -->
+        <div class="game-card" id="game-slots">
+          <div class="game-icon">🎰</div>
+          <h3>Machine à sous</h3>
+          <p class="muted">3 symboles identiques : +3× mise (7️⃣7️⃣7️⃣ = +5×). 2 identiques : +mise. Sinon tu perds la mise.</p>
+          <div class="stake-row">
+            <span class="muted">Mise</span>
+            <label class="stake-chip"><input type="radio" name="stake-slots" value="2"> 0,02 €</label>
+            <label class="stake-chip"><input type="radio" name="stake-slots" value="5" checked> 0,05 €</label>
+            <label class="stake-chip"><input type="radio" name="stake-slots" value="10"> 0,10 €</label>
+          </div>
+          <div class="slots-reels" id="slots-reels">
+            <span class="slot-reel" id="slot-0">🍒</span>
+            <span class="slot-reel" id="slot-1">🍋</span>
+            <span class="slot-reel" id="slot-2">🍇</span>
+          </div>
+          <button class="game-btn gold" id="slots-spin">🎰 Lancer</button>
+          <div class="coinflip-result" id="slots-result"></div>
+        </div>
+
+        <!-- ROUGE / NOIR -->
+        <div class="game-card" id="game-color">
+          <div class="game-icon">🎡</div>
+          <h3>Rouge ou Noir</h3>
+          <p class="muted">Mini-roulette. Mise sur une couleur : 50/50, tu gagnes ou tu perds ta mise.</p>
+          <div class="stake-row">
+            <span class="muted">Mise</span>
+            <label class="stake-chip"><input type="radio" name="stake-color" value="2"> 0,02 €</label>
+            <label class="stake-chip"><input type="radio" name="stake-color" value="5" checked> 0,05 €</label>
+            <label class="stake-chip"><input type="radio" name="stake-color" value="10"> 0,10 €</label>
+          </div>
+          <div class="roulette-ball" id="color-ball">⚪</div>
+          <div class="coinflip-buttons">
+            <button class="game-btn small" id="color-rouge" style="background:linear-gradient(135deg,#ef4444,#b91c1c)">Rouge</button>
+            <button class="game-btn small" id="color-noir" style="background:linear-gradient(135deg,#111827,#000)">Noir</button>
+          </div>
+          <div class="coinflip-result" id="color-result"></div>
         </div>
       </div>
     </section>

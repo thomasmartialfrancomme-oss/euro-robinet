@@ -328,6 +328,23 @@ button{font-family:inherit;cursor:pointer}
 .memory-card.matched{background:rgba(34,197,94,.2);border-color:var(--green);cursor:default}
 .memory-status{color:var(--muted);font-size:14px;font-weight:600}
 
+
+.stake-row{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.stake-chip{background:var(--bg2);border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:12.5px;cursor:pointer;color:var(--muted)}
+.stake-chip input{display:none}
+.stake-chip:has(input:checked){border-color:var(--gold);color:#fde68a;background:rgba(245,158,11,.12);font-weight:700}
+.dice-face{font-size:64px;line-height:1.2;min-height:70px}
+.dice-face.roll{animation:diceroll .7s}
+@keyframes diceroll{0%{transform:rotate(0) scale(1)}40%{transform:rotate(220deg) scale(1.15)}100%{transform:rotate(360deg) scale(1)}}
+.rps-arena{display:flex;align-items:center;justify-content:center;gap:16px;font-size:42px;min-height:54px}
+.slots-reels{display:flex;justify-content:center;gap:10px;margin:6px 0}
+.slot-reel{width:64px;height:64px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:34px}
+.slot-reel.spin{animation:slotspin .12s linear infinite}
+@keyframes slotspin{0%{transform:translateY(-6px)}50%{transform:translateY(6px)}100%{transform:translateY(-6px)}}
+.roulette-ball{font-size:52px;min-height:60px}
+.roulette-ball.spin{animation:ballspin .8s}
+@keyframes ballspin{0%{transform:rotate(0)}100%{transform:rotate(720deg)}}
+
 /* ===== LEGAL / FOOTER ===== */
 .legal-links{text-align:center;margin-top:18px;font-size:12.5px;color:var(--muted)}
 .legal-links a{color:var(--muted);text-decoration:none;transition:.15s}

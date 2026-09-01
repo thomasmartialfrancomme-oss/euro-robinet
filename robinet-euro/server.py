@@ -33,6 +33,8 @@ GAME_MAX_REWARD_CENTS = 5         # gain max par partie (0,05 €)
 GAME_DAILY_CAP_CENTS = 50         # plafond par jeu et par jour (0,50 €)
 GAMES = ("clicker", "memory")
 COINFLIP_STAKE_CENTS = 5          # mise du jeu Pile ou Face (0,05 €)
+ALLOWED_STAKES = (2, 5, 10)       # 0,02 / 0,05 / 0,10 €
+STAKE_ROUND_CAP = 40              # parties à mise / jeu / jour
 
 def now_ms():
     return int(time.time() * 1000)
@@ -491,8 +493,107 @@ def handle_api(conn, path, method, body, token):
         else:
             conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (stake, u["id"]))
             add_transaction(conn, u["id"], "earn", -stake, "Pile ou Face (perdu)")
+
         conn.commit()
         return 200, {"won": won, "actual": actual, "stake": stake, "balance": balance(conn, u["id"])}
+
+    if endpoint == "play_stake" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        game = body.get("game")
+        choice = body.get("choice")
+        try:
+            stake = int(body.get("stake_cents") or 0)
+        except (TypeError, ValueError):
+            stake = 0
+        if stake not in ALLOWED_STAKES:
+            return 400, {"error": "Mise invalide (0,02 / 0,05 / 0,10 €)."}
+        if u["balance_cents"] < stake:
+            return 400, {"error": f"Solde insuffisant : il faut {cents_to_str(stake)} €."}
+        day_start = now_ms() - (now_ms() % (86400 * 1000))
+        nplays = conn.execute(
+            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
+            (u["id"], game, day_start)).fetchone()[0]
+        if nplays >= STAKE_ROUND_CAP:
+            return 429, {"error": "Limite de parties atteinte pour ce jeu aujourd'hui."}
+
+        net = 0
+        won = False
+        draw = False
+        actual = None
+        extra = {}
+        label = "Jeu à mise"
+
+        if game == "dice":
+            if choice not in ("even", "odd"):
+                return 400, {"error": "Choisis pair ou impair."}
+            actual = random.randint(1, 6)
+            is_even = actual % 2 == 0
+            won = (choice == "even" and is_even) or (choice == "odd" and not is_even)
+            net = stake if won else -stake
+            label = "Dé (gagné)" if won else "Dé (perdu)"
+        elif game == "rps":
+            opts = ("pierre", "feuille", "ciseaux")
+            if choice not in opts:
+                return 400, {"error": "Choisis pierre, feuille ou ciseaux."}
+            actual = random.choice(opts)
+            beats = {"pierre": "ciseaux", "feuille": "pierre", "ciseaux": "feuille"}
+            if choice == actual:
+                draw = True
+                net = 0
+                label = "Chifoumi (égalité)"
+            else:
+                won = beats[choice] == actual
+                net = stake if won else -stake
+                label = "Chifoumi (gagné)" if won else "Chifoumi (perdu)"
+        elif game == "slots":
+            symbols = ["🍒", "🍋", "🍇", "🔔", "⭐", "7️⃣"]
+            reels = [random.choice(symbols) for _ in range(3)]
+            extra["reels"] = reels
+            extra["kind"] = "lose"
+            if reels[0] == reels[1] == reels[2]:
+                won = True
+                if reels[0] == "7️⃣":
+                    net = 5 * stake
+                    extra["kind"] = "jackpot"
+                    label = "Machine à sous (jackpot)"
+                else:
+                    net = 3 * stake
+                    extra["kind"] = "triple"
+                    label = "Machine à sous (triple)"
+            elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
+                won = True
+                net = stake
+                extra["kind"] = "double"
+                label = "Machine à sous (paire)"
+            else:
+                net = -stake
+                label = "Machine à sous (perdu)"
+            actual = "".join(reels)
+        elif game == "color":
+            if choice not in ("rouge", "noir"):
+                return 400, {"error": "Choisis rouge ou noir."}
+            actual = random.choice(["rouge", "noir"])
+            won = choice == actual
+            net = stake if won else -stake
+            label = "Rouge/Noir (gagné)" if won else "Rouge/Noir (perdu)"
+        else:
+            return 404, {"error": "Jeu inconnu."}
+
+        if net > 0:
+            conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                         (net, net, u["id"]))
+        elif net < 0:
+            conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (-net, u["id"]))
+        add_transaction(conn, u["id"], "earn", net, label)
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], game, now_ms(), net))
+        conn.commit()
+        payload = {"won": won, "draw": draw, "actual": actual, "stake": stake, "payout": net,
+                   "balance": balance(conn, u["id"])}
+        payload.update(extra)
+        return 200, payload
 
     if endpoint == "complete_cpa" and method == "POST":
         u = require_auth(conn, token)

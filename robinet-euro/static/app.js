@@ -606,8 +606,158 @@ async function finishMemory() {
   } catch (ex) { toast(ex.message, "err"); }
   await refresh();
 }
+
 document.getElementById("memory-start").addEventListener("click", buildMemory);
 buildMemory();
+
+// ===== JEUX À MISE =====
+function selectedStake(name) {
+  const el = document.querySelector(`input[name="${name}"]:checked`);
+  return el ? parseInt(el.value, 10) : 5;
+}
+function setBusy(ids, busy) {
+  ids.forEach((id) => { const b = document.getElementById(id); if (b) b.disabled = busy; });
+}
+
+async function playStake(game, choice, stakeName, resultId, onResult) {
+  const stake = selectedStake(stakeName);
+  try {
+    const r = await API.post("play_stake", { game, choice, stake_cents: stake });
+    onResult(r);
+    await refresh();
+    return r;
+  } catch (ex) {
+    const box = document.getElementById(resultId);
+    box.textContent = ex.message;
+    box.className = "coinflip-result";
+    toast(ex.message, "err");
+    await refresh();
+    return null;
+  }
+}
+
+// --- Dé ---
+const DICE_EMOJI = { 1:"⚀", 2:"⚁", 3:"⚂", 4:"⚃", 5:"⚄", 6:"⚅" };
+async function playDice(choice) {
+  setBusy(["dice-even","dice-odd"], true);
+  const face = document.getElementById("dice-face");
+  const box = document.getElementById("dice-result");
+  box.className = "coinflip-result";
+  box.textContent = "…";
+  face.classList.remove("roll");
+  void face.offsetWidth;
+  face.classList.add("roll");
+  const r = await playStake("dice", choice, "stake-dice", "dice-result", (res) => {
+    face.textContent = DICE_EMOJI[res.actual] || "🎲";
+    if (res.won) {
+      box.textContent = `🎉 ${res.actual} (${res.actual % 2 === 0 ? "pair" : "impair"}) — +${eur(res.stake)}`;
+      box.classList.add("win");
+      toast("Dé : +" + eur(res.stake), "gold");
+    } else {
+      box.textContent = `😕 ${res.actual} (${res.actual % 2 === 0 ? "pair" : "impair"}) — −${eur(res.stake)}`;
+      box.classList.add("lose");
+      toast("Dé : −" + eur(res.stake), "err");
+    }
+  });
+  setBusy(["dice-even","dice-odd"], false);
+}
+document.getElementById("dice-even").addEventListener("click", () => playDice("even"));
+document.getElementById("dice-odd").addEventListener("click", () => playDice("odd"));
+
+// --- Chifoumi ---
+const RPS_EMOJI = { pierre:"✊", feuille:"✋", ciseaux:"✌️" };
+async function playRps(choice) {
+  setBusy(["rps-pierre","rps-feuille","rps-ciseaux"], true);
+  document.getElementById("rps-you").textContent = RPS_EMOJI[choice];
+  document.getElementById("rps-cpu").textContent = "❔";
+  const box = document.getElementById("rps-result");
+  box.className = "coinflip-result";
+  box.textContent = "…";
+  const r = await playStake("rps", choice, "stake-rps", "rps-result", (res) => {
+    document.getElementById("rps-cpu").textContent = RPS_EMOJI[res.actual] || "❔";
+    if (res.draw) {
+      box.textContent = "Égalité — mise rendue.";
+      toast("Chifoumi : égalité");
+    } else if (res.won) {
+      box.textContent = `🎉 ${RPS_EMOJI[choice]} bat ${RPS_EMOJI[res.actual]} — +${eur(res.stake)}`;
+      box.classList.add("win");
+      toast("Chifoumi : +" + eur(res.stake), "gold");
+    } else {
+      box.textContent = `😕 ${RPS_EMOJI[res.actual]} bat ${RPS_EMOJI[choice]} — −${eur(res.stake)}`;
+      box.classList.add("lose");
+      toast("Chifoumi : −" + eur(res.stake), "err");
+    }
+  });
+  setBusy(["rps-pierre","rps-feuille","rps-ciseaux"], false);
+}
+document.getElementById("rps-pierre").addEventListener("click", () => playRps("pierre"));
+document.getElementById("rps-feuille").addEventListener("click", () => playRps("feuille"));
+document.getElementById("rps-ciseaux").addEventListener("click", () => playRps("ciseaux"));
+
+// --- Slots ---
+const SLOT_SYM = ["🍒","🍋","🍇","🔔","⭐","7️⃣"];
+let slotsBusy = false;
+document.getElementById("slots-spin").addEventListener("click", async () => {
+  if (slotsBusy) return;
+  slotsBusy = true;
+  const btn = document.getElementById("slots-spin");
+  btn.disabled = true;
+  const box = document.getElementById("slots-result");
+  box.className = "coinflip-result";
+  box.textContent = "…";
+  ["slot-0","slot-1","slot-2"].forEach((id) => document.getElementById(id).classList.add("spin"));
+  const spinInt = setInterval(() => {
+    for (let i = 0; i < 3; i++) {
+      document.getElementById("slot-" + i).textContent = SLOT_SYM[Math.floor(Math.random() * SLOT_SYM.length)];
+    }
+  }, 90);
+  const r = await playStake("slots", "spin", "stake-slots", "slots-result", () => {});
+  clearInterval(spinInt);
+  ["slot-0","slot-1","slot-2"].forEach((id) => document.getElementById(id).classList.remove("spin"));
+  if (r && r.reels) {
+    r.reels.forEach((s, i) => { document.getElementById("slot-" + i).textContent = s; });
+    const net = r.payout;
+    if (net > 0) {
+      box.textContent = (r.kind === "jackpot" ? "💎 Jackpot ! " : "✅ ") + "+" + eur(net);
+      box.classList.add("win");
+      toast("Machine à sous : +" + eur(net), "gold");
+    } else {
+      box.textContent = "Pas de combo — −" + eur(r.stake);
+      box.classList.add("lose");
+      toast("Machine à sous : −" + eur(r.stake), "err");
+    }
+  }
+  btn.disabled = false;
+  slotsBusy = false;
+});
+
+// --- Rouge / Noir ---
+async function playColor(choice) {
+  setBusy(["color-rouge","color-noir"], true);
+  const ball = document.getElementById("color-ball");
+  const box = document.getElementById("color-result");
+  box.className = "coinflip-result";
+  box.textContent = "…";
+  ball.classList.remove("spin");
+  void ball.offsetWidth;
+  ball.classList.add("spin");
+  await playStake("color", choice, "stake-color", "color-result", (res) => {
+    ball.textContent = res.actual === "rouge" ? "🔴" : "⚫";
+    if (res.won) {
+      box.textContent = `🎉 ${res.actual === "rouge" ? "Rouge" : "Noir"} — +${eur(res.stake)}`;
+      box.classList.add("win");
+      toast("Roulette : +" + eur(res.stake), "gold");
+    } else {
+      box.textContent = `😕 ${res.actual === "rouge" ? "Rouge" : "Noir"} — −${eur(res.stake)}`;
+      box.classList.add("lose");
+      toast("Roulette : −" + eur(res.stake), "err");
+    }
+  });
+  setBusy(["color-rouge","color-noir"], false);
+}
+document.getElementById("color-rouge").addEventListener("click", () => playColor("rouge"));
+document.getElementById("color-noir").addEventListener("click", () => playColor("noir"));
+
 
 // ===== BONUS =====
 document.getElementById("claim-bonus-btn").addEventListener("click", async () => {
