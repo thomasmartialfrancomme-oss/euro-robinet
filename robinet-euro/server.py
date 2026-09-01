@@ -43,6 +43,7 @@ MIN_WITHDRAW_CENTS = 600          # 6,00 €
 DAILY_CAP_CENTS = 600             # 6,00 € / jour (seuil de retrait)
 VIDEO_COOLDOWN_SEC = 45           # délai entre 2 vidéos
 BONUS_CENTS = 1                   # bonus quotidien (0,01 €)
+INTRO_REWARD_CENTS = 1            # vidéo d'accueil 0,01 € / jour
 WHEEL_SPINS_PER_DAY = 5
 FAUCET_COOLDOWN_SEC = 30          # toutes les 30 s
 FAUCET_MILLI = 2                  # 0,2 centime = 2/10 de centime (10 = 0,01 €)
@@ -701,6 +702,27 @@ def handle_api(conn, path, method, body, token):
         conn.commit()
         return 200, {"reward": reward, "balance": balance(conn, u["id"])}
 
+    if endpoint == "claim_intro" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
+        day_start = now_ms() - (now_ms() % (86400 * 1000))
+        n = conn.execute(
+            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
+            (u["id"], "intro", day_start)).fetchone()[0]
+        if n >= 1:
+            return 429, {"error": "Vidéo d'accueil déjà vue aujourd'hui."}
+        reward = INTRO_REWARD_CENTS
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], "intro", now_ms(), reward))
+        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                     (reward, reward, u["id"]))
+        add_transaction(conn, u["id"], "earn", reward, "Vidéo d'accueil")
+        conn.commit()
+        return 200, {"reward": reward, "balance": balance(conn, u["id"])}
+
     if endpoint == "spin_wheel" and method == "POST":
         u = require_auth(conn, token)
         if not u:
@@ -1340,7 +1362,7 @@ def handle_api(conn, path, method, body, token):
             return 400, {"error": f"Le retrait minimum est de 6,00 € (tu as demandé {cents_to_str(amount)} €)."}
         if amount > u["balance_cents"]:
             return 400, {"error": "Solde insuffisant."}
-        if method not in ("paypal", "virement", "crypto", "carte"):
+        if method not in ("paypal", "virement", "crypto", "carte", "lydia", "revolut", "payeer"):
             return 400, {"error": "Méthode de paiement invalide."}
         if not details:
             return 400, {"error": "Merci d'indiquer tes coordonnées de paiement."}
@@ -1593,6 +1615,9 @@ def dashboard_payload(conn, u):
         },
         "adult": adult_progress(conn, u["id"]),
         "clicks": click_payload(click_state(conn, u)),
+        "intro_done": bool(conn.execute(
+            "SELECT 1 FROM game_plays WHERE user_id=? AND game='intro' AND played_at>=?",
+            (u["id"], now_ms() - (now_ms() % (86400 * 1000)))).fetchone()),
     }
 
 # ---------------- HTTP SERVER ----------------
@@ -1681,7 +1706,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ctype = {"html": "text/html; charset=utf-8", "css": "text/css; charset=utf-8",
                  "js": "application/javascript; charset=utf-8", "svg": "image/svg+xml",
                  "png": "image/png", "jpg": "image/jpeg", "ico": "image/x-icon",
-                 "txt": "text/plain; charset=utf-8"}.get(ext.lstrip("."), "application/octet-stream")
+                 "txt": "text/plain; charset=utf-8", "mp4": "video/mp4"}.get(ext.lstrip("."), "application/octet-stream")
         with open(fpath, "rb") as f:
             data = f.read()
         self.send_response(200)

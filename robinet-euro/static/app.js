@@ -240,6 +240,8 @@ function renderDashboard(d) {
   renderOffers(d.offers);
 
   if (d.adult) updateAdultUI(d.adult);
+  if (d.clicks) updateClickUI(d.clicks);
+  if (!d.intro_done) maybeShowIntro();
 
   // robinet
   if (d.faucet) setupFaucet(d.faucet);
@@ -1460,6 +1462,7 @@ document.querySelectorAll(".gift-card").forEach((b) => {
 const WD_METHODS = { paypal: "Email PayPal", virement: "IBAN", crypto: "Adresse USDT (TRC20)" };
 document.getElementById("wd-method").addEventListener("change", (e) => {
   document.getElementById("wd-details-label").textContent = WD_METHODS[e.target.value];
+  document.getElementById("wd-details").placeholder = WD_PLACEHOLDERS[e.target.value] || "";
 });
 document.getElementById("wd-submit").addEventListener("click", async () => {
   const amount = parseFloat(document.getElementById("wd-amount").value);
@@ -1626,6 +1629,49 @@ function hostOf(url) {
   document.getElementById(id).addEventListener("click", (e) => {
     if (e.target.id === id) document.getElementById(id).classList.add("hidden");
   });
+});
+
+// ===== VIDÉO D'ACCUEIL =====
+let introShown = false;
+let introTimerInt = null;
+function maybeShowIntro() {
+  if (introShown) return;
+  const m = document.getElementById("intro-modal");
+  if (!m) return;
+  introShown = true;
+  m.classList.remove("hidden");
+  const vid = document.getElementById("intro-video");
+  const btn = document.getElementById("intro-claim");
+  const timer = document.getElementById("intro-timer");
+  btn.disabled = true;
+  btn.textContent = "⏳ Regarde la vidéo…";
+  try { vid.currentTime = 0; vid.muted = true; vid.play(); } catch (e) {}
+  let left = 15;
+  timer.textContent = left + " s";
+  clearInterval(introTimerInt);
+  introTimerInt = setInterval(() => {
+    left -= 1;
+    timer.textContent = Math.max(0, left) + " s";
+    if (left <= 0) {
+      clearInterval(introTimerInt);
+      btn.disabled = false;
+      btn.textContent = "✅ Gagner 0,01 €";
+    }
+  }, 1000);
+}
+document.getElementById("intro-claim").addEventListener("click", async () => {
+  if (document.getElementById("intro-claim").disabled) return;
+  try {
+    const r = await API.post("claim_intro");
+    toast("Présentation : +" + eur(r.reward), "gold");
+    document.getElementById("intro-modal").classList.add("hidden");
+    const vid = document.getElementById("intro-video");
+    try { vid.pause(); } catch (e) {}
+    await refresh();
+  } catch (ex) {
+    document.getElementById("intro-modal").classList.add("hidden");
+    toast(ex.message, "err");
+  }
 });
 
 // ===== boot =====

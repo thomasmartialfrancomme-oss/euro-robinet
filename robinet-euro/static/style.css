@@ -450,3 +450,6 @@ button{font-family:inherit;cursor:pointer}
 .chest-emoji{font-size:48px;min-height:56px}
 .chest-box.ready{border-color:#f59e0b;box-shadow:0 0 16px rgba(245,158,11,.25)}
 .chest-box.open{border-color:var(--green)}
+
+.intro-box{max-width:520px;text-align:center}
+.intro-video{width:100%;max-height:360px;border-radius:12px;background:#000;margin:10px 0;object-fit:cover}
