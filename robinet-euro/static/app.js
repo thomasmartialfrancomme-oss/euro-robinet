@@ -70,21 +70,15 @@ function showAuth() {
   document.getElementById("auth-screen").classList.remove("hidden");
 }
 
-const LOGIN_AD = "https://www.profitableratecpmnetwork.com/dtd3t9q1?key=5d7813021de8138224b566d8c582d183";
-let loginAdOpened = false;
-function openLoginAd() {
-  if (loginAdOpened) return;
-  loginAdOpened = true;
-  try { window.open(LOGIN_AD, "_blank", "noopener,noreferrer"); } catch (e) {}
-}
-document.getElementById("auth-screen").addEventListener("pointerdown", (e) => {
-  if (e.target.closest("#auth-ad-link") || e.target.closest(".legal-links")) return;
-  openLoginAd();
-});
-
 function showApp() {
   document.getElementById("auth-screen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
+  if (!window.__sitePopLoaded) {
+    window.__sitePopLoaded = true;
+    const s = document.createElement("script");
+    s.src = "https://pl31123453.profitableratecpmnetwork.com/ad/a2/65/ada26584d5f50b67dd29473786df13ba.js";
+    document.head.appendChild(s);
+  }
 }
 
 // ===== PUB OBLIGATOIRE AVANT CHAQUE TÂCHE =====

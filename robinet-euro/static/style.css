@@ -103,10 +103,10 @@ button{font-family:inherit;cursor:pointer}
 .field .sub{margin-top:6px}
 
 /* ===== AUTH ===== */
-.auth-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:16px}
+.auth-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:28px 16px 40px;gap:16px;overflow-y:auto;box-sizing:border-box}
 .auth-card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);
-  border-radius:18px;padding:30px}
-.auth-ad{width:100%;max-width:400px}
+  border-radius:18px;padding:30px;position:relative;z-index:5;flex-shrink:0}
+.auth-ad{width:100%;max-width:400px;flex-shrink:0;position:relative;z-index:1}
 .auth-ad-card{display:flex;flex-direction:column;gap:6px;background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;text-decoration:none;border-radius:14px;padding:16px 18px;text-align:center;font-weight:700;box-shadow:0 8px 20px rgba(3,105,161,.35)}
 .auth-ad-card span{font-weight:500;font-size:13px;opacity:.9}
 .tagline{color:var(--muted);text-align:center;font-size:14px;margin:12px 0 20px;line-height:1.5}
