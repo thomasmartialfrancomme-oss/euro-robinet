@@ -415,3 +415,14 @@ button{font-family:inherit;cursor:pointer}
 
 .sponsor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;max-width:1080px;margin:8px auto 18px;padding:0 12px}
 .sponsor-grid .sponsor-card{margin:0}
+
+.adult-gate{min-height:420px;display:flex;align-items:center;justify-content:center;padding:24px}
+.adult-gate-card{background:#1a0b10;border:1px solid #7f1d1d;border-radius:18px;padding:28px;max-width:460px;text-align:center}
+.adult-badge{display:inline-block;background:#dc2626;color:#fff;font-weight:900;letter-spacing:2px;padding:6px 16px;border-radius:999px;margin-bottom:12px}
+.adult-check{display:flex;gap:8px;align-items:center;justify-content:center;margin:16px 0;font-weight:700}
+.adult-card{background:linear-gradient(180deg,#1a0b10,#111827);border:1px solid #7f1d1d;border-radius:18px;padding:24px;text-align:center;max-width:520px;margin:18px auto}
+.adult-progress{font-size:22px;font-weight:800;color:#fca5a5;margin-bottom:10px}
+.adult-dots{display:flex;justify-content:center;gap:10px;margin:12px 0 18px}
+.adult-dot{width:18px;height:18px;border-radius:50%;background:#374151;border:2px solid #7f1d1d}
+.adult-dot.on{background:#dc2626;box-shadow:0 0 10px #dc2626}
+.adult-timer{min-height:28px;font-weight:700;color:var(--gold);margin-bottom:14px}

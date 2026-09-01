@@ -68,6 +68,11 @@ MINES_ROUND_CAP = 25
 MINES_DAILY_PROFIT_CAP = 25
 MINES_MULT_PCT = [100, 108, 116, 124, 133, 143, 154, 166, 179, 193, 208, 220]
 VIP_PLANS = {"day": (50, 24 * 3600 * 1000), "week": (200, 7 * 24 * 3600 * 1000)}
+ADULT_ADS_NEEDED = 3
+ADULT_REWARD_CENTS = 10           # 0,10 € (10 centimes) après 3 pubs
+ADULT_PER_DAY = 2                 # 2 fois / jour
+ADULT_VIEW_GAP_SEC = 12
+ADULT_VIEW_WINDOW_MS = 20 * 60 * 1000
 
 def now_ms():
     return int(time.time() * 1000)
@@ -753,6 +758,51 @@ def handle_api(conn, path, method, body, token):
         conn.commit()
         return 200, {"reward": reward, "balance": balance(conn, u["id"]), "left": FUN_PER_KIND - n - 1}
 
+    if endpoint == "adult_view" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
+        day_start = now_ms() - (now_ms() % (86400 * 1000))
+        claims_today = conn.execute(
+            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
+            (u["id"], "adult18", day_start)).fetchone()[0]
+        if claims_today >= ADULT_PER_DAY:
+            return 429, {"error": "Rubrique −18 : déjà utilisée aujourd'hui. Reviens demain."}
+        last = conn.execute(
+            "SELECT played_at FROM game_plays WHERE user_id=? AND game='adult-view' ORDER BY played_at DESC LIMIT 1",
+            (u["id"],)).fetchone()
+        if last and (now_ms() - last["played_at"]) < ADULT_VIEW_GAP_SEC * 1000:
+            wait = ADULT_VIEW_GAP_SEC - (now_ms() - last["played_at"]) // 1000
+            return 429, {"error": f"Patiente encore {wait} s sur la pub."}
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], "adult-view", now_ms(), 0))
+        conn.commit()
+        info = adult_progress(conn, u["id"])
+        return 200, info
+
+    if endpoint == "adult_claim" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
+        info = adult_progress(conn, u["id"])
+        if info["left_today"] <= 0:
+            return 429, {"error": "Rubrique −18 : déjà utilisée aujourd'hui. Reviens demain."}
+        if info["views"] < ADULT_ADS_NEEDED:
+            return 400, {"error": f"Regarde encore {ADULT_ADS_NEEDED - info['views']} pub(s) −18."}
+        reward = ADULT_REWARD_CENTS
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], "adult18", now_ms(), reward))
+        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                     (reward, reward, u["id"]))
+        add_transaction(conn, u["id"], "earn", reward, "−18 : 3 pubs")
+        conn.commit()
+        info = adult_progress(conn, u["id"])
+        return 200, {"reward": reward, "balance": balance(conn, u["id"]), **info}
+
     if endpoint == "play_game" and method == "POST":
         u = require_auth(conn, token)
         if not u:
@@ -1318,6 +1368,28 @@ def mines_mult_pct(gems):
         return MINES_MULT_PCT[-1]
     return MINES_MULT_PCT[gems]
 
+def adult_progress(conn, uid):
+    day_start = now_ms() - (now_ms() % (86400 * 1000))
+    claims_today = conn.execute(
+        "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
+        (uid, "adult18", day_start)).fetchone()[0]
+    last_claim = conn.execute(
+        "SELECT played_at FROM game_plays WHERE user_id=? AND game='adult18' ORDER BY played_at DESC LIMIT 1",
+        (uid,)).fetchone()
+    since = last_claim["played_at"] if last_claim else 0
+    window_start = now_ms() - ADULT_VIEW_WINDOW_MS
+    since = max(since, window_start)
+    views = conn.execute(
+        "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game='adult-view' AND played_at>?",
+        (uid, since)).fetchone()[0]
+    return {
+        "views": int(views),
+        "needed": ADULT_ADS_NEEDED,
+        "reward": ADULT_REWARD_CENTS,
+        "left_today": max(0, ADULT_PER_DAY - int(claims_today)),
+        "per_day": ADULT_PER_DAY,
+    }
+
 def user_payload(conn, u):
     vu = user_vip_until(u)
     return {
@@ -1368,6 +1440,7 @@ def dashboard_payload(conn, u):
             "milli": FAUCET_MILLI,
             "last_claim": last_faucet["claimed_at"] if last_faucet else 0,
         },
+        "adult": adult_progress(conn, u["id"]),
     }
 
 # ---------------- HTTP SERVER ----------------

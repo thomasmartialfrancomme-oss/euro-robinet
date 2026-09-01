@@ -185,6 +185,7 @@ document.querySelectorAll(".nav-btn").forEach((b) => {
     document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
     document.getElementById("tab-" + b.dataset.tab).classList.add("active");
     if (b.dataset.tab === "admin") loadAdmin();
+    if (b.dataset.tab === "adult") syncAdultGate();
   });
 });
 
@@ -235,6 +236,8 @@ function renderDashboard(d) {
 
   // offres
   renderOffers(d.offers);
+
+  if (d.adult) updateAdultUI(d.adult);
 
   // robinet
   if (d.faucet) setupFaucet(d.faucet);
@@ -1127,6 +1130,116 @@ document.getElementById("fun-quiz").addEventListener("click", async () => {
 });
 
 
+
+// ===== −18 (3 pubs → 0,10 €) =====
+const ADULT_LINKS = [
+  "https://www.profitableratecpmnetwork.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
+  "https://www.profitableratecpmnetwork.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7",
+  "https://www.profitableratecpmnetwork.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
+  "https://www.profitableratecpmnetwork.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
+  "https://www.profitableratecpmnetwork.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
+];
+let adultLinkI = 0;
+let adultBusy = false;
+let adultTimerInt = null;
+const ADULT_WAIT = 15;
+
+function syncAdultGate() {
+  const ok = localStorage.getItem("rb_age18") === "1";
+  document.getElementById("adult-gate").classList.toggle("hidden", ok);
+  document.getElementById("adult-room").classList.toggle("hidden", !ok);
+}
+
+function updateAdultUI(info) {
+  if (!info) return;
+  const views = Math.min(info.needed, info.views || 0);
+  const prog = document.getElementById("adult-progress");
+  const timer = document.getElementById("adult-timer");
+  const watch = document.getElementById("adult-watch");
+  const claim = document.getElementById("adult-claim");
+  const left = document.getElementById("adult-left");
+  if (!prog) return;
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById("adot-" + i).classList.toggle("on", i <= views);
+  }
+  prog.textContent = "Pub " + views + " / " + info.needed;
+  left.textContent = info.left_today > 0
+    ? "Encore " + info.left_today + " fois aujourd'hui."
+    : "Limite du jour atteinte. Reviens demain.";
+  if (info.left_today <= 0) {
+    watch.classList.add("hidden");
+    claim.classList.add("hidden");
+    timer.textContent = "Reviens demain pour la rubrique −18.";
+    return;
+  }
+  if (views >= info.needed) {
+    watch.classList.add("hidden");
+    claim.classList.remove("hidden");
+    timer.textContent = "3 pubs vues. Réclame 0,10 €.";
+  } else {
+    watch.classList.remove("hidden");
+    claim.classList.add("hidden");
+    watch.textContent = "🎬 Regarder la pub " + (views + 1) + " / " + info.needed;
+    if (!adultBusy) timer.textContent = "Clique pour ouvrir la pub " + (views + 1);
+  }
+}
+
+document.getElementById("adult-age-check").addEventListener("change", (e) => {
+  document.getElementById("adult-age-ok").disabled = !e.target.checked;
+});
+document.getElementById("adult-age-ok").addEventListener("click", () => {
+  if (!document.getElementById("adult-age-check").checked) return;
+  localStorage.setItem("rb_age18", "1");
+  syncAdultGate();
+});
+
+document.getElementById("adult-watch").addEventListener("click", async () => {
+  if (adultBusy) return;
+  adultBusy = true;
+  const btn = document.getElementById("adult-watch");
+  const timer = document.getElementById("adult-timer");
+  btn.disabled = true;
+  const url = ADULT_LINKS[adultLinkI % ADULT_LINKS.length];
+  adultLinkI += 1;
+  try { window.open(url, "_blank", "noopener,noreferrer"); } catch (e) {}
+  let left = ADULT_WAIT;
+  timer.textContent = "Regarde la pub… " + left + " s";
+  clearInterval(adultTimerInt);
+  adultTimerInt = setInterval(() => {
+    left -= 1;
+    timer.textContent = "Regarde la pub… " + Math.max(0, left) + " s";
+    if (left <= 0) {
+      clearInterval(adultTimerInt);
+      adultTimerInt = null;
+    }
+  }, 1000);
+  await new Promise((r) => setTimeout(r, ADULT_WAIT * 1000));
+  try {
+    const info = await API.post("adult_view");
+    updateAdultUI(info);
+    toast("Pub −18 validée (" + info.views + "/" + info.needed + ")");
+  } catch (ex) {
+    toast(ex.message, "err");
+  }
+  btn.disabled = false;
+  adultBusy = false;
+});
+
+document.getElementById("adult-claim").addEventListener("click", async () => {
+  if (adultBusy) return;
+  adultBusy = true;
+  try {
+    const r = await API.post("adult_claim");
+    toast("−18 : +" + eur(r.reward) + " !", "gold");
+    updateAdultUI(r);
+    await refresh();
+  } catch (ex) {
+    toast(ex.message, "err");
+  }
+  adultBusy = false;
+});
+
+syncAdultGate();
 
 // ===== BONUS =====
 document.getElementById("claim-bonus-btn").addEventListener("click", async () => {
