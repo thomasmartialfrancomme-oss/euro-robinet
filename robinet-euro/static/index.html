@@ -191,9 +191,34 @@
     </section>
 
     <!-- ===== JEUX ===== -->
+
     <section id="tab-games" class="tab">
       <h1 class="page-title">🎮 Jeux — gagne des pièces en jouant</h1>
       <p class="muted">Jeux gratuits, ou mise tes centimes : tu gagnes ou tu perds selon le résultat.</p>
+
+      <div class="crash-card" id="game-crash">
+        <div class="crash-head">
+          <div>
+            <h2>✈️ Express</h2>
+            <p class="muted">L’avion décolle, le multiplicateur monte. <b>Retire avant le crash</b> sinon tu perds ta mise. Les mises perdues vont à la caisse du site.</p>
+          </div>
+        </div>
+        <div class="crash-sky" id="crash-sky">
+          <div class="crash-plane" id="crash-plane">✈️</div>
+          <div class="crash-mult" id="crash-mult">1.00x</div>
+        </div>
+        <div class="crash-msg" id="crash-msg">Choisis ta mise et décolle.</div>
+        <div class="stake-row">
+          <span class="muted">Mise</span>
+          <label class="stake-chip"><input type="radio" name="stake-crash" value="2"> 0,02 €</label>
+          <label class="stake-chip"><input type="radio" name="stake-crash" value="5" checked> 0,05 €</label>
+          <label class="stake-chip"><input type="radio" name="stake-crash" value="10"> 0,10 €</label>
+        </div>
+        <div class="coinflip-buttons">
+          <button class="game-btn gold" id="crash-go">✈️ Décoller</button>
+          <button class="game-btn" id="crash-out" disabled>💸 Retirer</button>
+        </div>
+      </div>
 
       <div class="game-grid">
         <!-- CLICKER -->

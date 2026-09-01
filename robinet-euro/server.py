@@ -12,6 +12,7 @@ import hashlib
 import secrets
 import time
 import random
+import math
 import re
 import urllib.parse
 import urllib.request
@@ -55,6 +56,9 @@ STAKE_ROUND_CAP = 40              # parties à mise / jeu / jour
 FUN_KINDS = ("scratch", "chest", "balloon", "quiz")
 FUN_PER_KIND = 8                  # 8 pubs fun / type / jour
 FUN_COOLDOWN_SEC = 20
+CRASH_K = 0.07
+CRASH_MAX = 15.0
+CRASH_ROUND_CAP = 40
 
 def now_ms():
     return int(time.time() * 1000)
@@ -320,6 +324,20 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS crash_rounds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        stake_cents INTEGER NOT NULL,
+        crash_at REAL NOT NULL,
+        start_ms INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        cashed_mult REAL,
+        payout_cents INTEGER NOT NULL DEFAULT 0
+    )
+    """)
+    conn.commit()
+
     # ---- seed admin ----
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
@@ -388,6 +406,44 @@ def earned_today(conn, user_id):
 
 def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}")
+
+def crash_mult_from_elapsed(elapsed_sec):
+    return math.exp(CRASH_K * max(0.0, float(elapsed_sec)))
+
+def gen_crash_at():
+    r = random.random()
+    if r < 0.05:
+        return 1.00
+    m = 1.0 / max(0.02, (1.0 - r))
+    m = 1.0 + (m - 1.0) * 0.90
+    return round(min(max(m, 1.00), CRASH_MAX), 2)
+
+def credit_house(conn, cents, label):
+    if cents <= 0:
+        return
+    adm = conn.execute("SELECT id FROM users WHERE is_admin=1 ORDER BY id ASC LIMIT 1").fetchone()
+    if not adm:
+        return
+    conn.execute(
+        "UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+        (cents, cents, adm["id"]))
+    add_transaction(conn, adm["id"], "earn", cents, label)
+
+def settle_crash_if_needed(conn, row):
+    """Si le crash est dépassé, marque perdu et verse la mise à l'admin."""
+    if not row or row["status"] != "playing":
+        return row
+    elapsed = (now_ms() - row["start_ms"]) / 1000.0
+    m = crash_mult_from_elapsed(elapsed)
+    if m >= row["crash_at"]:
+        conn.execute("UPDATE crash_rounds SET status='lost', cashed_mult=? WHERE id=?",
+                     (row["crash_at"], row["id"]))
+        credit_house(conn, row["stake_cents"], "Express : mise perdue d'un joueur")
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (row["user_id"], "crash", now_ms(), -row["stake_cents"]))
+        conn.commit()
+        row = conn.execute("SELECT * FROM crash_rounds WHERE id=?", (row["id"],)).fetchone()
+    return row
 
 # ---------------- HANDLERS ----------------
 def handle_api(conn, path, method, body, token):
@@ -689,6 +745,104 @@ def handle_api(conn, path, method, body, token):
 
         conn.commit()
         return 200, {"won": won, "actual": actual, "stake": stake, "balance": balance(conn, u["id"])}
+
+
+    if endpoint == "crash_start" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        try:
+            stake = int(body.get("stake_cents") or 0)
+        except (TypeError, ValueError):
+            stake = 0
+        if stake not in ALLOWED_STAKES:
+            return 400, {"error": "Mise invalide (0,02 / 0,05 / 0,10 €)."}
+        if u["balance_cents"] < stake:
+            return 400, {"error": f"Solde insuffisant : il faut {cents_to_str(stake)} €."}
+        day_start = now_ms() - (now_ms() % (86400 * 1000))
+        nplays = conn.execute(
+            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
+            (u["id"], "crash", day_start)).fetchone()[0]
+        if nplays >= CRASH_ROUND_CAP:
+            return 429, {"error": "Limite Express atteinte pour aujourd'hui."}
+        # clôturer une partie restante
+        leftover = conn.execute(
+            "SELECT * FROM crash_rounds WHERE user_id=? AND status='playing' ORDER BY id DESC LIMIT 1",
+            (u["id"],)).fetchone()
+        if leftover:
+            settle_crash_if_needed(conn, leftover)
+            leftover = conn.execute("SELECT * FROM crash_rounds WHERE id=?", (leftover["id"],)).fetchone()
+            if leftover and leftover["status"] == "playing":
+                conn.execute("UPDATE crash_rounds SET status='lost', cashed_mult=? WHERE id=?",
+                             (leftover["crash_at"], leftover["id"]))
+                credit_house(conn, leftover["stake_cents"], "Express : mise perdue d'un joueur")
+                conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                             (u["id"], "crash", now_ms(), -leftover["stake_cents"]))
+        crash_at = gen_crash_at()
+        conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (stake, u["id"]))
+        add_transaction(conn, u["id"], "earn", -stake, "Express (mise)")
+        cur = conn.execute(
+            "INSERT INTO crash_rounds(user_id,stake_cents,crash_at,start_ms,status) VALUES(?,?,?,?, 'playing')",
+            (u["id"], stake, crash_at, now_ms()))
+        conn.commit()
+        return 200, {"id": cur.lastrowid, "stake": stake, "k": CRASH_K, "max": CRASH_MAX,
+                     "balance": balance(conn, u["id"])}
+
+    if endpoint == "crash_status" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        rid = int(body.get("id") or 0)
+        row = conn.execute("SELECT * FROM crash_rounds WHERE id=? AND user_id=?", (rid, u["id"])).fetchone()
+        if not row:
+            return 404, {"error": "Partie introuvable."}
+        row = settle_crash_if_needed(conn, row)
+        elapsed = (now_ms() - row["start_ms"]) / 1000.0
+        shown = min(crash_mult_from_elapsed(elapsed), CRASH_MAX)
+        if row["status"] == "lost":
+            return 200, {"status": "lost", "crash_at": row["crash_at"], "stake": row["stake_cents"],
+                         "balance": balance(conn, u["id"])}
+        if row["status"] == "won":
+            return 200, {"status": "won", "at": row["cashed_mult"], "payout": row["payout_cents"],
+                         "stake": row["stake_cents"], "balance": balance(conn, u["id"])}
+        return 200, {"status": "playing", "multiplier": round(shown, 2), "stake": row["stake_cents"]}
+
+    if endpoint == "crash_cashout" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        rid = int(body.get("id") or 0)
+        row = conn.execute("SELECT * FROM crash_rounds WHERE id=? AND user_id=?", (rid, u["id"])).fetchone()
+        if not row:
+            return 404, {"error": "Partie introuvable."}
+        row = settle_crash_if_needed(conn, row)
+        if row["status"] == "lost":
+            return 200, {"status": "lost", "crash_at": row["crash_at"], "stake": row["stake_cents"],
+                         "balance": balance(conn, u["id"])}
+        if row["status"] != "playing":
+            return 400, {"error": "Cette partie est déjà terminée."}
+        elapsed = (now_ms() - row["start_ms"]) / 1000.0
+        at = round(min(crash_mult_from_elapsed(elapsed), CRASH_MAX), 2)
+        if at >= row["crash_at"]:
+            conn.execute("UPDATE crash_rounds SET status='lost', cashed_mult=? WHERE id=?",
+                         (row["crash_at"], row["id"]))
+            credit_house(conn, row["stake_cents"], "Express : mise perdue d'un joueur")
+            conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                         (u["id"], "crash", now_ms(), -row["stake_cents"]))
+            conn.commit()
+            return 200, {"status": "lost", "crash_at": row["crash_at"], "stake": row["stake_cents"],
+                         "balance": balance(conn, u["id"])}
+        payout = int(round(row["stake_cents"] * at))
+        conn.execute("UPDATE crash_rounds SET status='won', cashed_mult=?, payout_cents=? WHERE id=?",
+                     (at, payout, row["id"]))
+        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                     (payout, max(0, payout - row["stake_cents"]), u["id"]))
+        add_transaction(conn, u["id"], "earn", payout, f"Express retiré à {at:.2f}x")
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], "crash", now_ms(), payout - row["stake_cents"]))
+        conn.commit()
+        return 200, {"status": "won", "at": at, "payout": payout, "stake": row["stake_cents"],
+                     "balance": balance(conn, u["id"])}
 
     if endpoint == "play_stake" and method == "POST":
         u = require_auth(conn, token)

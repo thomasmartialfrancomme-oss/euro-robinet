@@ -394,3 +394,13 @@ button{font-family:inherit;cursor:pointer}
 .balloon{cursor:default;transition:transform .15s}
 .balloon.pop{transform:scale(1.4);opacity:0;transition:.25s}
 .quiz-q{font-weight:700;font-size:14px;min-height:36px;color:var(--text)}
+
+.crash-card{background:linear-gradient(180deg,#0b1a33,#111827);border:1px solid #1f4e78;border-radius:18px;padding:20px;margin:16px 0 22px;text-align:center}
+.crash-card h2{font-size:22px;margin-bottom:6px}
+.crash-sky{position:relative;height:220px;margin:12px 0;background:linear-gradient(180deg,#1d4ed8 0%,#0ea5e9 40%,#082f49 100%);border-radius:16px;overflow:hidden;border:1px solid #1f5c78}
+.crash-plane{position:absolute;left:12%;bottom:18%;font-size:48px;transition:left .12s linear, bottom .12s linear;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
+.crash-sky.crashed .crash-plane{transform:rotate(80deg);bottom:8% !important;left:70% !important;opacity:.3;transition:.35s}
+.crash-mult{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:900;color:#fff;text-shadow:0 4px 18px rgba(0,0,0,.45);pointer-events:none}
+.crash-mult.hot{color:#fde68a}
+.crash-mult.boom{color:#f87171}
+.crash-msg{min-height:24px;font-weight:700;margin:8px 0;color:var(--gold)}

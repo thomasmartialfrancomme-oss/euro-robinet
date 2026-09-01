@@ -840,7 +840,113 @@ async function playColor(choice) {
 }
 document.getElementById("color-rouge").addEventListener("click", () => playColor("rouge"));
 
+
 document.getElementById("color-noir").addEventListener("click", () => playColor("noir"));
+
+// ===== EXPRESS (avion / crash) =====
+let crashId = null, crashRaf = null, crashStartPerf = 0, crashK = 0.07, crashBusy = false, crashPollAt = 0;
+function crashSetMsg(t, cls) {
+  const el = document.getElementById("crash-msg");
+  el.textContent = t;
+  el.className = "crash-msg" + (cls ? " " + cls : "");
+}
+function crashStopAnim() {
+  if (crashRaf) cancelAnimationFrame(crashRaf);
+  crashRaf = null;
+}
+function crashFrame() {
+  const t = (performance.now() - crashStartPerf) / 1000;
+  const m = Math.exp(crashK * Math.max(0, t));
+  const el = document.getElementById("crash-mult");
+  el.textContent = m.toFixed(2) + "x";
+  el.className = "crash-mult" + (m >= 2 ? " hot" : "");
+  const plane = document.getElementById("crash-plane");
+  const pct = Math.min(78, 8 + t * 7);
+  plane.style.left = (8 + t * 4.2) + "%";
+  plane.style.bottom = pct + "%";
+  const btn = document.getElementById("crash-out");
+  btn.textContent = "💸 Retirer " + m.toFixed(2) + "x";
+  if (performance.now() - crashPollAt > 180) {
+    crashPollAt = performance.now();
+    crashPoll();
+  }
+  crashRaf = requestAnimationFrame(crashFrame);
+}
+async function crashPoll() {
+  if (!crashId) return;
+  try {
+    const s = await API.post("crash_status", { id: crashId });
+    if (s.status === "lost") crashLose(s);
+    if (s.status === "won") crashWin(s);
+  } catch (e) {}
+}
+function crashLose(s) {
+  crashId = null;
+  crashBusy = false;
+  crashStopAnim();
+  document.getElementById("crash-sky").classList.add("crashed");
+  const el = document.getElementById("crash-mult");
+  el.textContent = "💥 " + Number(s.crash_at).toFixed(2) + "x";
+  el.className = "crash-mult boom";
+  crashSetMsg("Crash à " + Number(s.crash_at).toFixed(2) + "x — tu perds " + eur(s.stake));
+  document.getElementById("crash-out").disabled = true;
+  document.getElementById("crash-go").disabled = false;
+  toast("Express : crash, −" + eur(s.stake), "err");
+  refresh();
+}
+function crashWin(s) {
+  crashId = null;
+  crashBusy = false;
+  crashStopAnim();
+  document.getElementById("crash-mult").textContent = Number(s.at).toFixed(2) + "x";
+  crashSetMsg("Retiré à " + Number(s.at).toFixed(2) + "x → +" + eur(s.payout));
+  document.getElementById("crash-out").disabled = true;
+  document.getElementById("crash-go").disabled = false;
+  toast("Express : +" + eur(s.payout), "gold");
+  refresh();
+}
+document.getElementById("crash-go").addEventListener("click", async () => {
+  if (crashBusy) return;
+  if (!(await waitAd())) return;
+  crashBusy = true;
+  document.getElementById("crash-go").disabled = true;
+  document.getElementById("crash-sky").classList.remove("crashed");
+  document.getElementById("crash-plane").style.left = "8%";
+  document.getElementById("crash-plane").style.bottom = "18%";
+  document.getElementById("crash-mult").className = "crash-mult";
+  crashSetMsg("Décollage…");
+  try {
+    const stake = selectedStake("stake-crash");
+    const r = await API.post("crash_start", { stake_cents: stake });
+    crashId = r.id;
+    crashK = r.k || 0.07;
+    crashStartPerf = performance.now();
+    crashPollAt = 0;
+    document.getElementById("crash-out").disabled = false;
+    crashSetMsg("Retire avant le crash !");
+    crashStopAnim();
+    crashRaf = requestAnimationFrame(crashFrame);
+    refresh();
+  } catch (ex) {
+    crashBusy = false;
+    document.getElementById("crash-go").disabled = false;
+    crashSetMsg(ex.message);
+    toast(ex.message, "err");
+  }
+});
+document.getElementById("crash-out").addEventListener("click", async () => {
+  if (!crashId) return;
+  document.getElementById("crash-out").disabled = true;
+  try {
+    const s = await API.post("crash_cashout", { id: crashId });
+    if (s.status === "lost") crashLose(s);
+    else crashWin(s);
+  } catch (ex) {
+    toast(ex.message, "err");
+    document.getElementById("crash-out").disabled = false;
+  }
+});
+
 
 // ===== FUN (pubs → quelques centimes) =====
 const FUN_QUIZ = [
