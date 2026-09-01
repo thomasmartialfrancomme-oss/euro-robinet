@@ -249,6 +249,7 @@ function renderDashboard(d) {
 
   // retrait
   document.getElementById("wd-balance").textContent = eur(u.balance);
+  refreshGiftLocks();
 
   // admin nav
   document.getElementById("admin-nav").style.display = u.is_admin ? "block" : "none";
@@ -1315,6 +1316,43 @@ function renderHistory(recent) {
 }
 
 // ===== WITHDRAW =====
+let selectedGift = null;
+function refreshGiftLocks() {
+  const bal = currentUser ? currentUser.balance : 0;
+  document.querySelectorAll(".gift-card").forEach((b) => {
+    const need = parseInt(b.dataset.cents, 10);
+    b.disabled = bal < need;
+  });
+}
+document.querySelectorAll(".gift-card").forEach((b) => {
+  b.addEventListener("click", () => {
+    const need = parseInt(b.dataset.cents, 10);
+    if (!currentUser || currentUser.balance < need) {
+      toast("Il te faut " + eur(need) + " pour cette carte.", "err");
+      return;
+    }
+    selectedGift = { id: b.dataset.gift, cents: need, title: b.querySelector(".gc-brand").textContent + " " + b.querySelector(".gc-val").textContent };
+    document.getElementById("gift-form-title").textContent = "🎁 " + selectedGift.title;
+    document.getElementById("gift-form-sub").textContent = eur(need) + " seront retirés de ton solde. Tu reçois le code par e-mail après validation.";
+    document.getElementById("gift-form").style.display = "block";
+    document.getElementById("gift-email").focus();
+  });
+});
+document.getElementById("gift-submit").addEventListener("click", async () => {
+  if (!selectedGift) return;
+  const email = document.getElementById("gift-email").value.trim();
+  if (!email || !email.includes("@")) { toast("Indique un e-mail valide.", "err"); return; }
+  try {
+    const r = await API.post("withdraw", { method: "carte", gift_id: selectedGift.id, details: email, amount_cents: selectedGift.cents });
+    toast(r.message || "Demande envoyée !", "gold");
+    document.getElementById("gift-form").style.display = "none";
+    document.getElementById("gift-email").value = "";
+    selectedGift = null;
+    await refresh();
+    await loadWithdrawals();
+  } catch (ex) { toast(ex.message, "err"); }
+});
+
 const WD_METHODS = { paypal: "Email PayPal", virement: "IBAN", crypto: "Adresse USDT (TRC20)" };
 document.getElementById("wd-method").addEventListener("change", (e) => {
   document.getElementById("wd-details-label").textContent = WD_METHODS[e.target.value];

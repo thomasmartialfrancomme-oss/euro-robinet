@@ -426,3 +426,15 @@ button{font-family:inherit;cursor:pointer}
 .adult-dot{width:18px;height:18px;border-radius:50%;background:#374151;border:2px solid #7f1d1d}
 .adult-dot.on{background:#dc2626;box-shadow:0 0 10px #dc2626}
 .adult-timer{min-height:28px;font-weight:700;color:var(--gold);margin-bottom:14px}
+
+.gift-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:12px 0 20px}
+.gift-card{display:flex;flex-direction:column;justify-content:space-between;min-height:120px;border:none;border-radius:14px;padding:14px 16px;text-align:left;cursor:pointer;color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.25);transition:transform .12s}
+.gift-card:hover{transform:translateY(-3px)}
+.gift-card:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.gc-brand{font-weight:800;font-size:15px;letter-spacing:.4px;text-transform:none}
+.gc-val{font-size:28px;font-weight:900;line-height:1.1}
+.gc-sub{font-size:11px;opacity:.85}
+.gc-amazon{background:linear-gradient(135deg,#232f3e,#131921);border-bottom:4px solid #ff9900}
+.gc-amazon .gc-brand{color:#ff9900;font-family:Arial,sans-serif}
+.gc-google{background:linear-gradient(135deg,#34a853,#188038)}
+.gc-steam{background:linear-gradient(135deg,#1b2838,#171a21);border-bottom:4px solid #66c0f4}

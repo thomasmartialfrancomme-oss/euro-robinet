@@ -453,7 +453,29 @@
     <!-- ===== RETRAIT ===== -->
     <section id="tab-withdraw" class="tab">
       <h1 class="page-title">💸 Retrait</h1>
-      <p class="muted">Retire tes gains dès <b>6,00 €</b>.</p>
+      <p class="muted">Retire tes gains dès <b>6,00 €</b> (PayPal, virement, crypto) ou échange-les contre une <b>carte cadeau</b>.</p>
+
+      <h2 class="page-title" style="font-size:20px;margin-top:8px">🎁 Cartes cadeaux</h2>
+      <p class="muted">Quand tu as assez de solde, clique sur une carte. Le code t’est envoyé par e-mail après validation.</p>
+      <div class="gift-grid" id="gift-grid">
+        <button type="button" class="gift-card gc-amazon" data-gift="amazon-10" data-cents="1000"><span class="gc-brand">amazon</span><span class="gc-val">10 €</span><span class="gc-sub">Carte cadeau</span></button>
+        <button type="button" class="gift-card gc-amazon" data-gift="amazon-15" data-cents="1500"><span class="gc-brand">amazon</span><span class="gc-val">15 €</span><span class="gc-sub">Carte cadeau</span></button>
+        <button type="button" class="gift-card gc-amazon" data-gift="amazon-25" data-cents="2500"><span class="gc-brand">amazon</span><span class="gc-val">25 €</span><span class="gc-sub">Carte cadeau</span></button>
+        <button type="button" class="gift-card gc-google" data-gift="google-10" data-cents="1000"><span class="gc-brand">Google Play</span><span class="gc-val">10 €</span><span class="gc-sub">Carte cadeau</span></button>
+        <button type="button" class="gift-card gc-google" data-gift="google-15" data-cents="1500"><span class="gc-brand">Google Play</span><span class="gc-val">15 €</span><span class="gc-sub">Carte cadeau</span></button>
+        <button type="button" class="gift-card gc-steam" data-gift="steam-10" data-cents="1000"><span class="gc-brand">STEAM</span><span class="gc-val">10 €</span><span class="gc-sub">Carte cadeau</span></button>
+        <button type="button" class="gift-card gc-steam" data-gift="steam-15" data-cents="1500"><span class="gc-brand">STEAM</span><span class="gc-val">15 €</span><span class="gc-sub">Carte cadeau</span></button>
+      </div>
+      <div class="card" id="gift-form" style="display:none;max-width:520px">
+        <h2 id="gift-form-title">Carte cadeau</h2>
+        <p class="muted" id="gift-form-sub">Le solde sera débité. Tu reçois le code par e-mail.</p>
+        <div class="field">
+          <label>E-mail pour recevoir le code</label>
+          <input type="email" id="gift-email" placeholder="ton@email.com">
+        </div>
+        <button class="btn-primary big" id="gift-submit">Demander cette carte</button>
+      </div>
+
       <div class="two-col">
         <div class="card">
           <h2>Demander un retrait</h2>

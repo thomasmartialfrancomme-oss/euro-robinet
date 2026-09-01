@@ -73,6 +73,15 @@ ADULT_REWARD_CENTS = 10           # 0,10 € (10 centimes) après 3 pubs
 ADULT_PER_DAY = 2                 # 2 fois / jour
 ADULT_VIEW_GAP_SEC = 12
 ADULT_VIEW_WINDOW_MS = 20 * 60 * 1000
+GIFT_CARDS = {
+    "amazon-10": {"brand": "Amazon", "cents": 1000, "label": "Carte Amazon 10 €"},
+    "amazon-15": {"brand": "Amazon", "cents": 1500, "label": "Carte Amazon 15 €"},
+    "amazon-25": {"brand": "Amazon", "cents": 2500, "label": "Carte Amazon 25 €"},
+    "google-10": {"brand": "Google Play", "cents": 1000, "label": "Carte Google Play 10 €"},
+    "google-15": {"brand": "Google Play", "cents": 1500, "label": "Carte Google Play 15 €"},
+    "steam-10": {"brand": "Steam", "cents": 1000, "label": "Carte Steam 10 €"},
+    "steam-15": {"brand": "Steam", "cents": 1500, "label": "Carte Steam 15 €"},
+}
 
 def now_ms():
     return int(time.time() * 1000)
@@ -1223,20 +1232,32 @@ def handle_api(conn, path, method, body, token):
         method = body.get("method")
         details = (body.get("details") or "").strip()
         amount = int(body.get("amount_cents") or 0)
+        if method == "carte":
+            gift = GIFT_CARDS.get(body.get("gift_id") or "")
+            if not gift:
+                return 400, {"error": "Carte cadeau inconnue."}
+            amount = int(gift["cents"])
+            email = details
+            if "@" not in email or "." not in email:
+                return 400, {"error": "Indique un e-mail valide pour recevoir le code."}
+            details = gift["label"] + " | " + email
+            method = "carte"
         if amount < MIN_WITHDRAW_CENTS:
             return 400, {"error": f"Le retrait minimum est de 6,00 € (tu as demandé {cents_to_str(amount)} €)."}
         if amount > u["balance_cents"]:
             return 400, {"error": "Solde insuffisant."}
-        if method not in ("paypal", "virement", "crypto"):
+        if method not in ("paypal", "virement", "crypto", "carte"):
             return 400, {"error": "Méthode de paiement invalide."}
         if not details:
             return 400, {"error": "Merci d'indiquer tes coordonnées de paiement."}
         conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (amount, u["id"]))
         conn.execute("INSERT INTO withdrawals(user_id,amount_cents,method,details,status,created_at) VALUES(?,?,?,?,?,?)",
                      (u["id"], amount, method, details, "pending", now_ms()))
-        add_transaction(conn, u["id"], "withdraw", -amount, f"Retrait ({method})")
+        label = details.split(" | ")[0] if method == "carte" else f"Retrait ({method})"
+        add_transaction(conn, u["id"], "withdraw", -amount, label)
         conn.commit()
-        return 200, {"balance": balance(conn, u["id"]), "message": "Demande de retrait envoyée !"}
+        msg = "Demande de carte cadeau envoyée ! Tu recevras le code par e-mail après validation." if method == "carte" else "Demande de retrait envoyée !"
+        return 200, {"balance": balance(conn, u["id"]), "message": msg}
 
     # ---- ADMIN ----
     if endpoint.startswith("admin"):
