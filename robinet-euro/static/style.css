@@ -364,3 +364,20 @@ button{font-family:inherit;cursor:pointer}
 .toast.err{border-left-color:var(--red)}
 .toast.gold{border-left-color:var(--gold)}
 @keyframes slidein{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+
+/* ===== PUBS ===== */
+.ad-wrap{margin:14px auto;max-width:1080px;padding:0 12px;text-align:center}
+.ad-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.ad-slot{display:flex;justify-content:center;overflow:auto;background:rgba(0,0,0,.15);border:1px dashed var(--line);border-radius:12px;padding:8px}
+.ad-728{min-height:90px}
+.ad-160{min-height:300px}
+.ad-native{min-height:120px}
+.sponsor-card{
+  display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center;
+  margin:8px auto 18px;max-width:1080px;padding:16px 18px;
+  background:linear-gradient(135deg,#1e293b,#0f172a);border:1px solid var(--line);
+  border-radius:14px;text-decoration:none;color:var(--text);
+}
+.sponsor-card:hover{border-color:var(--gold)}
+.sponsor-card strong{font-size:16px;color:#fde68a}
+.sponsor-card span{color:var(--muted);font-size:13px}
