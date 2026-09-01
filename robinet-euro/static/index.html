@@ -714,11 +714,12 @@
 
 <div id="intro-modal" class="modal hidden">
   <div class="modal-box intro-box">
-    <h2>💧 Bienvenue sur Robinet €</h2>
-    <p class="muted">Regarde cette courte présentation (15 s) et gagne <b>0,01 €</b>.</p>
-    <video id="intro-video" class="intro-video" src="intro.mp4" playsinline muted autoplay></video>
-    <div class="ad-gate-timer" id="intro-timer">15 s</div>
-    <button class="btn-primary big" id="intro-claim" disabled>⏳ Regarde la vidéo…</button>
+    <h2>💧 Démo Robinet €</h2>
+    <p class="muted">Courte vidéo de présentation <b>avec le son</b>. Aucun gain pour cette démo.</p>
+    <video id="intro-video" class="intro-video" src="intro.mp4" playsinline controls></video>
+    <button class="btn-primary big" id="intro-play">▶ Lancer la démo (son activé)</button>
+    <button class="btn-primary big hidden" id="intro-claim">Continuer</button>
+    <button class="btn-ghost" id="intro-skip" style="margin-top:8px">Passer</button>
   </div>
 </div>
 

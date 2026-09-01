@@ -1631,48 +1631,40 @@ function hostOf(url) {
   });
 });
 
-// ===== VIDÉO D'ACCUEIL =====
+// ===== VIDÉO D'ACCUEIL (démo, sans argent, avec son) =====
 let introShown = false;
-let introTimerInt = null;
+function closeIntro() {
+  localStorage.setItem("rb_intro_seen", "1");
+  const m = document.getElementById("intro-modal");
+  if (m) m.classList.add("hidden");
+  const vid = document.getElementById("intro-video");
+  try { vid.pause(); } catch (e) {}
+}
 function maybeShowIntro() {
   if (introShown) return;
+  if (localStorage.getItem("rb_intro_seen") === "1") return;
   const m = document.getElementById("intro-modal");
   if (!m) return;
   introShown = true;
   m.classList.remove("hidden");
   const vid = document.getElementById("intro-video");
-  const btn = document.getElementById("intro-claim");
-  const timer = document.getElementById("intro-timer");
-  btn.disabled = true;
-  btn.textContent = "⏳ Regarde la vidéo…";
-  try { vid.currentTime = 0; vid.muted = true; vid.play(); } catch (e) {}
-  let left = 15;
-  timer.textContent = left + " s";
-  clearInterval(introTimerInt);
-  introTimerInt = setInterval(() => {
-    left -= 1;
-    timer.textContent = Math.max(0, left) + " s";
-    if (left <= 0) {
-      clearInterval(introTimerInt);
-      btn.disabled = false;
-      btn.textContent = "✅ Gagner 0,01 €";
-    }
-  }, 1000);
+  vid.muted = false;
+  vid.volume = 1;
 }
-document.getElementById("intro-claim").addEventListener("click", async () => {
-  if (document.getElementById("intro-claim").disabled) return;
-  try {
-    const r = await API.post("claim_intro");
-    toast("Présentation : +" + eur(r.reward), "gold");
-    document.getElementById("intro-modal").classList.add("hidden");
-    const vid = document.getElementById("intro-video");
-    try { vid.pause(); } catch (e) {}
-    await refresh();
-  } catch (ex) {
-    document.getElementById("intro-modal").classList.add("hidden");
-    toast(ex.message, "err");
-  }
+document.getElementById("intro-play").addEventListener("click", async () => {
+  const vid = document.getElementById("intro-video");
+  vid.muted = false;
+  vid.volume = 1;
+  try { vid.currentTime = 0; await vid.play(); } catch (e) { toast("Clique sur lecture dans la vidéo pour entendre le son.", "err"); }
+  document.getElementById("intro-play").classList.add("hidden");
+  document.getElementById("intro-claim").classList.remove("hidden");
 });
+document.getElementById("intro-video").addEventListener("ended", () => {
+  document.getElementById("intro-claim").classList.remove("hidden");
+  document.getElementById("intro-play").classList.add("hidden");
+});
+document.getElementById("intro-claim").addEventListener("click", () => closeIntro());
+document.getElementById("intro-skip").addEventListener("click", () => closeIntro());
 
 // ===== boot =====
 (async function boot() {
