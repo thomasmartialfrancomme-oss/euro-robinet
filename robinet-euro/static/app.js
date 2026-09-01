@@ -187,7 +187,6 @@ document.querySelectorAll(".nav-btn").forEach((b) => {
     document.getElementById("tab-" + b.dataset.tab).classList.add("active");
     if (b.dataset.tab === "admin") loadAdmin();
     if (b.dataset.tab === "adult") syncAdultGate();
-    if (b.dataset.tab === "clicks") syncClicksGate();
   });
 });
 
@@ -1284,24 +1283,6 @@ function playAdultAd() {
   });
 }
 
-function syncClicksGate() {
-  const ok = localStorage.getItem("rb_age18") === "1";
-  const gate = document.getElementById("clicks-gate");
-  const room = document.getElementById("clicks-room");
-  if (!gate || !room) return;
-  gate.classList.toggle("hidden", ok);
-  room.classList.toggle("hidden", !ok);
-}
-document.getElementById("clicks-age-check").addEventListener("change", (e) => {
-  document.getElementById("clicks-age-ok").disabled = !e.target.checked;
-});
-document.getElementById("clicks-age-ok").addEventListener("click", () => {
-  if (!document.getElementById("clicks-age-check").checked) return;
-  localStorage.setItem("rb_age18", "1");
-  syncClicksGate();
-  syncAdultGate();
-});
-
 let lastClickInfo = { clicks: 0, chests: [] };
 function updateClickUI(info) {
   if (!info) return;
@@ -1376,7 +1357,6 @@ async function chestAction(id) {
 [1, 2, 3].forEach((id) => {
   document.getElementById("chest-btn-" + id).addEventListener("click", () => chestAction(id));
 });
-syncClicksGate();
 
 // ===== BONUS =====
 document.getElementById("claim-bonus-btn").addEventListener("click", async () => {
@@ -1657,6 +1637,26 @@ document.getElementById("intro-play").addEventListener("click", async () => {
   vid.volume = 1;
   try { vid.currentTime = 0; await vid.play(); } catch (e) { toast("Clique sur lecture dans la vidéo pour entendre le son.", "err"); }
   document.getElementById("intro-play").classList.add("hidden");
+  document.getElementById("intro-claim").classList.remove("hidden");
+});
+document.getElementById("intro-video").addEventListener("ended", () => {
+  document.getElementById("intro-claim").classList.remove("hidden");
+  document.getElementById("intro-play").classList.add("hidden");
+});
+document.getElementById("intro-claim").addEventListener("click", () => closeIntro());
+document.getElementById("intro-skip").addEventListener("click", () => closeIntro());
+
+// ===== boot =====
+(async function boot() {
+  if (!API.token) { showAuth(); return; }
+  try {
+    await refresh();
+    showApp();
+  } catch (e) {
+    API.logout();
+  }
+})();
+("intro-play").classList.add("hidden");
   document.getElementById("intro-claim").classList.remove("hidden");
 });
 document.getElementById("intro-video").addEventListener("ended", () => {

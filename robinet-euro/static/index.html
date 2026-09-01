@@ -51,7 +51,6 @@
       <button class="nav-btn" data-tab="earn">🎬 Gagner</button>
       <button class="nav-btn" data-tab="games">🎮 Jeux</button>
       <button class="nav-btn" data-tab="fun">🎉 Fun</button>
-      <button class="nav-btn" data-tab="clicks">👆 Clics</button>
       <button class="nav-btn" data-tab="adult">🔞 −18</button>
       <button class="nav-btn" data-tab="withdraw">💸 Retrait</button>
       <button class="nav-btn" data-tab="history">📜 Historique</button>
@@ -422,49 +421,6 @@
       </div>
     </section>
 
-    <!-- ===== CLICS / COFFRES ===== -->
-    <section id="tab-clicks" class="tab">
-      <div id="clicks-gate" class="adult-gate">
-        <div class="adult-gate-card">
-          <div class="adult-badge">−18</div>
-          <h2>Clics &amp; coffres — 18 ans +</h2>
-          <p>Pour débloquer et ouvrir un coffre, tu dois regarder une pub −18. Interdit aux moins de 18 ans.</p>
-          <label class="adult-check"><input type="checkbox" id="clicks-age-check"> J’ai 18 ans ou plus</label>
-          <button class="btn-primary big" id="clicks-age-ok" disabled>Entrer</button>
-        </div>
-      </div>
-      <div id="clicks-room" class="hidden">
-        <h1 class="page-title">👆 Gagne en cliquant</h1>
-        <p class="muted">Clique plusieurs fois pour débloquer des <b>coffres</b>. À chaque palier : <b>pub −18</b>. Pour ouvrir le coffre : <b>encore une pub −18</b>, puis des centimes.</p>
-        <div class="click-arena">
-          <button type="button" class="click-big" id="click-big">🪙</button>
-          <div class="click-count" id="click-count">0 clics</div>
-          <div class="muted" id="click-hint">20 clics → coffre 1</div>
-        </div>
-        <div class="chest-row" id="chest-row">
-          <div class="chest-box" id="chest-1" data-chest="1">
-            <div class="chest-emoji" id="chest-emoji-1">🔒</div>
-            <h3>Coffre 1</h3>
-            <p class="muted">20 clics · 0,01 €</p>
-            <button class="game-btn gold" id="chest-btn-1" disabled>🔒 20 clics</button>
-          </div>
-          <div class="chest-box" id="chest-2" data-chest="2">
-            <div class="chest-emoji" id="chest-emoji-2">🔒</div>
-            <h3>Coffre 2</h3>
-            <p class="muted">50 clics · 0,01 €</p>
-            <button class="game-btn gold" id="chest-btn-2" disabled>🔒 50 clics</button>
-          </div>
-          <div class="chest-box" id="chest-3" data-chest="3">
-            <div class="chest-emoji" id="chest-emoji-3">🔒</div>
-            <h3>Coffre 3</h3>
-            <p class="muted">100 clics · 0,02 €</p>
-            <button class="game-btn gold" id="chest-btn-3" disabled>🔒 100 clics</button>
-          </div>
-        </div>
-        <p class="muted" id="click-status">3 coffres par jour. Pubs −18 à chaque déblocage et à chaque ouverture.</p>
-      </div>
-    </section>
-
     <!-- ===== −18 ===== -->
     <section id="tab-adult" class="tab">
       <div id="adult-gate" class="adult-gate">
@@ -491,6 +447,34 @@
           <button class="btn-primary big hidden" id="adult-claim">💰 Réclamer 0,10 €</button>
           <p class="muted" id="adult-left"></p>
         </div>
+        <h2 class="page-title" style="font-size:22px;margin-top:28px">👆 Coffres (pubs −18)</h2>
+        <p class="muted">Clique plusieurs fois pour débloquer des <b>coffres</b>. À chaque palier : <b>pub −18</b>. Pour ouvrir : <b>encore une pub −18</b>, puis des centimes.</p>
+        <div class="click-arena">
+          <button type="button" class="click-big" id="click-big">🪙</button>
+          <div class="click-count" id="click-count">0 clics</div>
+          <div class="muted" id="click-hint">20 clics → coffre 1</div>
+        </div>
+        <div class="chest-row" id="chest-row">
+          <div class="chest-box" id="chest-1" data-chest="1">
+            <div class="chest-emoji" id="chest-emoji-1">🔒</div>
+            <h3>Coffre 1</h3>
+            <p class="muted">20 clics · 0,01 €</p>
+            <button class="game-btn gold" id="chest-btn-1" disabled>🔒 20 clics</button>
+          </div>
+          <div class="chest-box" id="chest-2" data-chest="2">
+            <div class="chest-emoji" id="chest-emoji-2">🔒</div>
+            <h3>Coffre 2</h3>
+            <p class="muted">50 clics · 0,01 €</p>
+            <button class="game-btn gold" id="chest-btn-2" disabled>🔒 50 clics</button>
+          </div>
+          <div class="chest-box" id="chest-3" data-chest="3">
+            <div class="chest-emoji" id="chest-emoji-3">🔒</div>
+            <h3>Coffre 3</h3>
+            <p class="muted">100 clics · 0,02 €</p>
+            <button class="game-btn gold" id="chest-btn-3" disabled>🔒 100 clics</button>
+          </div>
+        </div>
+        <p class="muted" id="click-status">3 coffres par jour. Uniquement dans −18.</p>
       </div>
     </section>
 
