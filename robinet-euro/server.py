@@ -14,11 +14,28 @@ import time
 import random
 import re
 import urllib.parse
+import urllib.request
+import urllib.error
+import threading
+import atexit
+import signal
+import base64
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE, "data.db")
 STATIC = os.path.join(BASE, "static")
 PORT = int(os.environ.get("PORT", 8000))
+
+def _pick_db_path():
+    env = os.environ.get("DB_PATH")
+    if env:
+        return env
+    if os.path.isdir("/data"):
+        return "/data/data.db"
+    return os.path.join(BASE, "data.db")
+
+DB_PATH = _pick_db_path()
+GITHUB_BACKUP_REPO = os.environ.get("GITHUB_BACKUP_REPO", "thomasmartialfrancomme-oss/euro-robinet-data")
+GITHUB_BACKUP_FILE = os.environ.get("GITHUB_BACKUP_FILE", "data.db")
 
 # ------- Paramètres -------
 MIN_WITHDRAW_CENTS = 600          # 6,00 €
@@ -43,10 +60,149 @@ def now_ms():
     return int(time.time() * 1000)
 
 def db():
-    conn = sqlite3.connect(DB_PATH)
+    os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
+
+# ---------------- PERSISTENCE (Render free efface le disque) ----------------
+_backup_lock = threading.Lock()
+_backup_sha = None
+
+def _gh_token():
+    return os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
+
+def _gh_request(method, url, payload=None):
+    token = _gh_token()
+    if not token:
+        return None, None
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method=method)
+    req.add_header("Authorization", "Bearer " + token)
+    req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("User-Agent", "robinet-euro-backup")
+    req.add_header("X-GitHub-Api-Version", "2022-11-28")
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            raw = resp.read()
+            return resp.status, json.loads(raw.decode("utf-8")) if raw else {}
+    except urllib.error.HTTPError as e:
+        raw = e.read()
+        try:
+            body = json.loads(raw.decode("utf-8")) if raw else {}
+        except Exception:
+            body = {}
+        return e.code, body
+    except Exception as e:
+        log(f"Backup GitHub erreur réseau : {e}")
+        return None, None
+
+def _checkpoint_db():
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=30)
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        conn.close()
+    except Exception:
+        pass
+
+def restore_db():
+    """Récupère la base sauvegardée avant init (sinon tout est à zéro après un sleep Render)."""
+    global _backup_sha
+    if not _gh_token():
+        log("Pas de GITHUB_TOKEN : pas de restauration (la base sera vide si le disque a été effacé).")
+        return
+    url = f"https://api.github.com/repos/{GITHUB_BACKUP_REPO}/contents/{GITHUB_BACKUP_FILE}"
+    status, body = _gh_request("GET", url + "?ref=main")
+    if status == 404:
+        log("Aucune sauvegarde GitHub pour l'instant.")
+        return
+    if status != 200 or not body or not body.get("content"):
+        log(f"Restauration GitHub impossible (HTTP {status}).")
+        return
+    _backup_sha = body.get("sha")
+    raw = base64.b64decode(body["content"].encode("ascii"))
+    if len(raw) < 100:
+        log("Sauvegarde GitHub trop petite, ignorée.")
+        return
+    os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
+    tmp = DB_PATH + ".restore"
+    with open(tmp, "wb") as f:
+        f.write(raw)
+    os.replace(tmp, DB_PATH)
+    log(f"Base restaurée depuis GitHub ({len(raw)} octets).")
+
+def backup_db(force=False):
+    """Envoie data.db sur un repo GitHub privé."""
+    global _backup_sha
+    token = _gh_token()
+    if not token:
+        return
+    if not os.path.isfile(DB_PATH):
+        return
+    if not _backup_lock.acquire(blocking=force):
+        return
+    try:
+        _checkpoint_db()
+        with open(DB_PATH, "rb") as f:
+            raw = f.read()
+        if len(raw) < 100:
+            return
+        content = base64.b64encode(raw).decode("ascii")
+        url = f"https://api.github.com/repos/{GITHUB_BACKUP_REPO}/contents/{GITHUB_BACKUP_FILE}"
+        payload = {
+            "message": "backup data.db " + time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            "content": content,
+            "branch": "main",
+        }
+        if _backup_sha:
+            payload["sha"] = _backup_sha
+        status, body = _gh_request("PUT", url, payload)
+        if status in (200, 201) and body and body.get("content"):
+            _backup_sha = body["content"].get("sha")
+            log(f"Base sauvegardée ({len(raw)} octets).")
+        elif status == 409:
+            # sha périmé : relire puis réessayer une fois
+            st2, b2 = _gh_request("GET", url)
+            if st2 == 200 and b2:
+                _backup_sha = b2.get("sha")
+                payload["sha"] = _backup_sha
+                status, body = _gh_request("PUT", url, payload)
+                if status in (200, 201) and body and body.get("content"):
+                    _backup_sha = body["content"].get("sha")
+                    log(f"Base sauvegardée ({len(raw)} octets).")
+        else:
+            log(f"Sauvegarde GitHub HTTP {status} {str(body)[:180] if body else ''}")
+    except Exception as e:
+        log(f"Sauvegarde échouée : {e}")
+    finally:
+        _backup_lock.release()
+
+def _backup_loop():
+    while True:
+        time.sleep(45)
+        try:
+            backup_db(False)
+        except Exception:
+            pass
+
+def start_persistence():
+    restore_db()
+    t = threading.Thread(target=_backup_loop, daemon=True)
+    t.start()
+    atexit.register(lambda: backup_db(True))
+    def _sig(signum, frame):
+        log("Arrêt : sauvegarde de la base…")
+        backup_db(True)
+        raise SystemExit(0)
+    try:
+        signal.signal(signal.SIGTERM, _sig)
+    except Exception:
+        pass
 
 def hash_pw(password, salt=None):
     if salt is None:
@@ -920,10 +1076,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 if __name__ == "__main__":
+    log(f"Fichier base : {DB_PATH}")
+    start_persistence()
     init_db()
     log(f"Démarrage sur 0.0.0.0:{PORT}")
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        pass
+        backup_db(True)

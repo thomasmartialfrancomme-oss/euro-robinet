@@ -5,3 +5,6 @@ services:
     plan: free
     buildCommand: ""
     startCommand: python3 server.py
+    envVars:
+      - key: GITHUB_BACKUP_REPO
+        value: thomasmartialfrancomme-oss/euro-robinet-data
