@@ -1185,6 +1185,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
+    def do_HEAD(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        if path.startswith("/api/"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            return
+        self._serve_static(path, head=True)
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -1225,12 +1235,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self._send(404, {"error": "Not found"})
 
-    def _serve_static(self, path):
+    def _serve_static(self, path, head=False):
         if path == "/" or path == "":
             path = "/index.html"
         # sécurité : pas de path traversal
         fpath = os.path.normpath(os.path.join(STATIC, path.lstrip("/")))
-        if not fpath.startswith(STATIC):
+        if not fpath.startswith(os.path.abspath(STATIC)):
             self._send(404, {"error": "Not found"})
             return
         if not os.path.isfile(fpath):
@@ -1246,8 +1256,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "public, max-age=300")
         self.end_headers()
-        self.wfile.write(data)
+        if not head:
+            self.wfile.write(data)
 
 if __name__ == "__main__":
     log(f"Fichier base : {DB_PATH}")
