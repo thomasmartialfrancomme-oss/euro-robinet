@@ -57,6 +57,7 @@
     </nav>
     <div class="user-box">
       <div class="balance-pill" title="Solde disponible">💰 <span id="top-balance">0,00 €</span></div>
+      <div class="vip-pill hidden" id="vip-pill">⭐ Sans pub</div>
       <div class="user-menu">
         <span id="top-username">—</span>
         <button class="btn-ghost" id="logout-btn" title="Déconnexion">⎋</button>
@@ -127,6 +128,16 @@
           <h2>🎡 Roue de la fortune</h2>
           <p>Jusqu'à 5 tours par jour. Gagne jusqu'à <b>0,05 €</b> !</p>
           <button class="btn-primary" id="spin-btn">Lancer la roue</button>
+        </div>
+      </div>
+
+      <div class="card" id="vip-card">
+        <h2>⭐ Pass sans publicité</h2>
+        <p class="muted">Payé avec ton solde. Plus de pubs de 15 s. L’argent va à la caisse du site.</p>
+        <p id="vip-status" class="muted">Pas d’abonnement.</p>
+        <div class="coinflip-buttons">
+          <button class="btn-primary" id="vip-day">24 h — 0,50 €</button>
+          <button class="btn-primary" id="vip-week">7 jours — 2,00 €</button>
         </div>
       </div>
 
@@ -217,6 +228,24 @@
         <div class="coinflip-buttons">
           <button class="game-btn gold" id="crash-go">✈️ Décoller</button>
           <button class="game-btn" id="crash-out" disabled>💸 Retirer</button>
+        </div>
+      </div>
+
+
+      <div class="crash-card" id="game-mines">
+        <h2>💎 Mines</h2>
+        <p class="muted">Grille 5×5, <b>4 mines cachées</b>. Avance case par case. Tu peux retirer à tout moment. Une mine = tu perds tout (ça va à l’admin).</p>
+        <div class="mines-grid" id="mines-grid"></div>
+        <div class="crash-msg" id="mines-msg">Choisis ta mise, puis commence.</div>
+        <div class="stake-row">
+          <span class="muted">Mise</span>
+          <label class="stake-chip"><input type="radio" name="stake-mines" value="2"> 0,02 €</label>
+          <label class="stake-chip"><input type="radio" name="stake-mines" value="5" checked> 0,05 €</label>
+          <label class="stake-chip"><input type="radio" name="stake-mines" value="10"> 0,10 €</label>
+        </div>
+        <div class="coinflip-buttons">
+          <button class="game-btn gold" id="mines-go">▶️ Commencer</button>
+          <button class="game-btn" id="mines-out" disabled>💸 Retirer</button>
         </div>
       </div>
 

@@ -404,3 +404,11 @@ button{font-family:inherit;cursor:pointer}
 .crash-mult.hot{color:#fde68a}
 .crash-mult.boom{color:#f87171}
 .crash-msg{min-height:24px;font-weight:700;margin:8px 0;color:var(--gold)}
+
+.vip-pill{background:linear-gradient(135deg,#f59e0b,#d97706);color:#111;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:800}
+.mines-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:340px;margin:14px auto}
+.mine-cell{aspect-ratio:1;background:var(--bg2);border:1px solid var(--line);border-radius:10px;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mine-cell:disabled{cursor:default}
+.mine-cell.gem{background:rgba(34,197,94,.18);border-color:var(--green)}
+.mine-cell.boom{background:rgba(239,68,68,.25);border-color:var(--red)}
+.mine-cell.safe{opacity:.55}

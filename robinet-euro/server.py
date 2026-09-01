@@ -61,6 +61,12 @@ CRASH_MAX = 2.80
 CRASH_ROUND_CAP = 25
 CRASH_DAILY_PROFIT_CAP = 25   # max +0,25 € net / jour sur Express
 CRASH_PAYOUT_CAP_MULT = 2.20  # jamais plus de 2,20x
+MINES_COUNT = 4
+MINES_CELLS = 25
+MINES_ROUND_CAP = 25
+MINES_DAILY_PROFIT_CAP = 25
+MINES_MULT_PCT = [100, 108, 116, 124, 133, 143, 154, 166, 179, 193, 208, 220]
+VIP_PLANS = {"day": (50, 24 * 3600 * 1000), "week": (200, 7 * 24 * 3600 * 1000)}
 
 def now_ms():
     return int(time.time() * 1000)
@@ -339,6 +345,25 @@ def init_db():
     )
     """)
     conn.commit()
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS mines_rounds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        stake_cents INTEGER NOT NULL,
+        mines TEXT NOT NULL,
+        revealed TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL,
+        start_ms INTEGER NOT NULL,
+        payout_cents INTEGER NOT NULL DEFAULT 0
+    )
+    """)
+    conn.commit()
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN vip_until INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
 
     # ---- seed admin ----
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
@@ -863,6 +888,133 @@ def handle_api(conn, path, method, body, token):
         return 200, {"status": "won", "at": at_pay, "payout": payout, "stake": row["stake_cents"],
                      "balance": balance(conn, u["id"])}
 
+
+    if endpoint == "mines_start" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        try:
+            stake = int(body.get("stake_cents") or 0)
+        except (TypeError, ValueError):
+            stake = 0
+        if stake not in ALLOWED_STAKES:
+            return 400, {"error": "Mise invalide (0,02 / 0,05 / 0,10 €)."}
+        if u["balance_cents"] < stake:
+            return 400, {"error": f"Solde insuffisant : il faut {cents_to_str(stake)} €."}
+        day_start = now_ms() - (now_ms() % (86400 * 1000))
+        nplays = conn.execute(
+            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
+            (u["id"], "mines", day_start)).fetchone()[0]
+        if nplays >= MINES_ROUND_CAP:
+            return 429, {"error": "Limite Mines atteinte pour aujourd'hui."}
+        leftover = conn.execute(
+            "SELECT * FROM mines_rounds WHERE user_id=? AND status='playing' ORDER BY id DESC LIMIT 1",
+            (u["id"],)).fetchone()
+        if leftover:
+            conn.execute("UPDATE mines_rounds SET status='lost' WHERE id=?", (leftover["id"],))
+            credit_house(conn, leftover["stake_cents"], "Mines : mise perdue d'un joueur")
+            conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                         (u["id"], "mines", now_ms(), -leftover["stake_cents"]))
+        mines = sorted(random.sample(range(MINES_CELLS), MINES_COUNT))
+        conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (stake, u["id"]))
+        add_transaction(conn, u["id"], "earn", -stake, "Mines (mise)")
+        cur = conn.execute(
+            "INSERT INTO mines_rounds(user_id,stake_cents,mines,revealed,status,start_ms) VALUES(?,?,?,?, 'playing', ?)",
+            (u["id"], stake, json.dumps(mines), "[]", now_ms()))
+        conn.commit()
+        return 200, {"id": cur.lastrowid, "stake": stake, "cells": MINES_CELLS, "mines_count": MINES_COUNT,
+                     "multiplier": 1.0, "balance": balance(conn, u["id"])}
+
+    if endpoint == "mines_reveal" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        rid = int(body.get("id") or 0)
+        try:
+            tile = int(body.get("tile"))
+        except (TypeError, ValueError):
+            return 400, {"error": "Case invalide."}
+        if tile < 0 or tile >= MINES_CELLS:
+            return 400, {"error": "Case invalide."}
+        row = conn.execute("SELECT * FROM mines_rounds WHERE id=? AND user_id=?", (rid, u["id"])).fetchone()
+        if not row or row["status"] != "playing":
+            return 400, {"error": "Partie introuvable ou terminée."}
+        mines = json.loads(row["mines"])
+        revealed = json.loads(row["revealed"] or "[]")
+        if tile in revealed:
+            return 400, {"error": "Case déjà ouverte."}
+        if tile in mines:
+            conn.execute("UPDATE mines_rounds SET status='lost', revealed=? WHERE id=?",
+                         (json.dumps(revealed + [tile]), rid))
+            credit_house(conn, row["stake_cents"], "Mines : mise perdue d'un joueur")
+            conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                         (u["id"], "mines", now_ms(), -row["stake_cents"]))
+            conn.commit()
+            return 200, {"status": "lost", "tile": tile, "boom": True, "mines": mines,
+                         "revealed": revealed + [tile], "stake": row["stake_cents"],
+                         "balance": balance(conn, u["id"])}
+        revealed.append(tile)
+        gems = len(revealed)
+        pct = mines_mult_pct(gems)
+        conn.execute("UPDATE mines_rounds SET revealed=? WHERE id=?", (json.dumps(revealed), rid))
+        conn.commit()
+        return 200, {"status": "playing", "tile": tile, "gem": True, "revealed": revealed,
+                     "gems": gems, "multiplier": round(pct / 100.0, 2),
+                     "payout": int(round(row["stake_cents"] * pct / 100.0))}
+
+    if endpoint == "mines_cashout" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        rid = int(body.get("id") or 0)
+        row = conn.execute("SELECT * FROM mines_rounds WHERE id=? AND user_id=?", (rid, u["id"])).fetchone()
+        if not row or row["status"] != "playing":
+            return 400, {"error": "Partie introuvable ou terminée."}
+        revealed = json.loads(row["revealed"] or "[]")
+        mines = json.loads(row["mines"])
+        gems = len(revealed)
+        if gems < 1:
+            return 400, {"error": "Ouvre au moins une case avant de retirer."}
+        pct = mines_mult_pct(gems)
+        payout = int(round(row["stake_cents"] * pct / 100.0))
+        day_start = now_ms() - (now_ms() % (86400 * 1000))
+        net = conn.execute(
+            "SELECT COALESCE(SUM(reward_cents),0) FROM game_plays WHERE user_id=? AND game='mines' AND played_at>=?",
+            (u["id"], day_start)).fetchone()[0]
+        profit = payout - row["stake_cents"]
+        if net + profit > MINES_DAILY_PROFIT_CAP:
+            payout = row["stake_cents"] + max(0, MINES_DAILY_PROFIT_CAP - net)
+        conn.execute("UPDATE mines_rounds SET status='won', payout_cents=? WHERE id=?", (payout, rid))
+        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                     (payout, max(0, payout - row["stake_cents"]), u["id"]))
+        add_transaction(conn, u["id"], "earn", payout, f"Mines retiré ({gems} gemmes)")
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], "mines", now_ms(), payout - row["stake_cents"]))
+        conn.commit()
+        return 200, {"status": "won", "payout": payout, "gems": gems, "mines": mines,
+                     "multiplier": round(payout / max(1, row["stake_cents"]), 2),
+                     "stake": row["stake_cents"], "balance": balance(conn, u["id"])}
+
+    if endpoint == "buy_vip" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        plan = body.get("plan")
+        if plan not in VIP_PLANS:
+            return 400, {"error": "Choisis 24 h ou 7 jours."}
+        price, dur = VIP_PLANS[plan]
+        if u["balance_cents"] < price:
+            return 400, {"error": f"Solde insuffisant : {cents_to_str(price)} €."}
+        conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (price, u["id"]))
+        add_transaction(conn, u["id"], "withdraw", -price, "Pass sans pub (" + plan + ")")
+        credit_house(conn, price, "Pass sans pub vendu")
+        base = max(now_ms(), user_vip_until(u))
+        until = base + dur
+        conn.execute("UPDATE users SET vip_until=? WHERE id=?", (until, u["id"]))
+        conn.commit()
+        return 200, {"ok": True, "vip_until": until, "balance": balance(conn, u["id"]),
+                     "message": "Sans pub activé !"}
+
     if endpoint == "play_stake" and method == "POST":
         u = require_auth(conn, token)
         if not u:
@@ -1079,6 +1231,18 @@ def handle_admin(conn, parts, method, body):
         conn.commit()
         return 200, {"ok": True}
 
+    if sub == "user_vip" and method == "POST":
+        uid = body.get("id")
+        days = int(body.get("days") or 7)
+        u = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+        if not u:
+            return 404, {"error": "Utilisateur introuvable."}
+        base = max(now_ms(), user_vip_until(u))
+        until = base + days * 24 * 3600 * 1000
+        conn.execute("UPDATE users SET vip_until=? WHERE id=?", (until, uid))
+        conn.commit()
+        return 200, {"ok": True, "vip_until": until}
+
     if sub == "offer_create" and method == "POST":
         title = body.get("title")
         type_ = body.get("type")
@@ -1116,8 +1280,27 @@ def handle_admin(conn, parts, method, body):
 def balance(conn, uid):
     return conn.execute("SELECT balance_cents FROM users WHERE id=?", (uid,)).fetchone()[0]
 
+def user_vip_until(u):
+    try:
+        return int(u["vip_until"] or 0)
+    except Exception:
+        return 0
+
+def user_is_vip(u):
+    return user_vip_until(u) > now_ms()
+
+def mines_mult_pct(gems):
+    if gems < 0:
+        return 100
+    if gems >= len(MINES_MULT_PCT):
+        return MINES_MULT_PCT[-1]
+    return MINES_MULT_PCT[gems]
+
 def user_payload(conn, u):
+    vu = user_vip_until(u)
     return {
+        "vip": vu > now_ms(),
+        "vip_until": vu,
         "id": u["id"], "username": u["username"], "email": u["email"],
         "balance": u["balance_cents"], "total_earned": u["total_earned_cents"],
         "is_admin": bool(u["is_admin"]), "banned": bool(u["banned"]),

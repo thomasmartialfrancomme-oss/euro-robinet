@@ -82,6 +82,7 @@ let adGateBusy = false;
 
 function waitAd() {
   return new Promise((resolve) => {
+    if (currentUser && currentUser.vip) { resolve(true); return; }
     if (adGateBusy) { resolve(false); return; }
     adGateBusy = true;
     const modal = document.getElementById("ad-gate-modal");
@@ -190,6 +191,17 @@ function renderDashboard(d) {
   document.getElementById("stat-today").textContent = eur(u.earned_today);
   document.getElementById("stat-total").textContent = eur(u.total_earned);
   document.getElementById("stat-dailycap").textContent = eur(u.daily_cap);
+
+  const pill = document.getElementById("vip-pill");
+  const st = document.getElementById("vip-status");
+  if (u.vip) {
+    pill.classList.remove("hidden");
+    const d = new Date(u.vip_until);
+    st.textContent = "Sans pub jusqu’au " + d.toLocaleString("fr-FR");
+  } else {
+    pill.classList.add("hidden");
+    st.textContent = "Pas d’abonnement.";
+  }
 
   // progression vers retrait
   const pct = Math.min(100, (u.balance / u.min_withdraw) * 100);
@@ -841,7 +853,93 @@ async function playColor(choice) {
 document.getElementById("color-rouge").addEventListener("click", () => playColor("rouge"));
 
 
+
 document.getElementById("color-noir").addEventListener("click", () => playColor("noir"));
+
+// ===== MINES =====
+let minesId = null, minesBusy = false;
+function minesBuild(revealed, mines, boomTile, playing) {
+  const g = document.getElementById("mines-grid");
+  g.innerHTML = "";
+  const rev = new Set(revealed || []);
+  const mn = new Set(mines || []);
+  for (let i = 0; i < 25; i++) {
+    const b = document.createElement("button");
+    b.className = "mine-cell";
+    b.type = "button";
+    if (rev.has(i) && !(mn.has(i))) { b.textContent = "💎"; b.classList.add("gem"); b.disabled = true; }
+    else if (mn.has(i) && (boomTile === i || !playing)) { b.textContent = "💣"; b.classList.add("boom"); b.disabled = true; }
+    else if (!playing) { b.textContent = mn.has(i) ? "💣" : ""; b.classList.add("safe"); b.disabled = true; }
+    else { b.textContent = ""; b.onclick = () => minesReveal(i); }
+    g.appendChild(b);
+  }
+}
+minesBuild([], [], null, false);
+async function minesReveal(tile) {
+  if (!minesId || minesBusy) return;
+  minesBusy = true;
+  try {
+    const r = await API.post("mines_reveal", { id: minesId, tile });
+    if (r.status === "lost") {
+      minesId = null;
+      minesBuild(r.revealed, r.mines, r.tile, false);
+      document.getElementById("mines-msg").textContent = "💣 Mine ! Tu perds " + eur(r.stake);
+      document.getElementById("mines-out").disabled = true;
+      document.getElementById("mines-go").disabled = false;
+      toast("Mines : perdu, −" + eur(r.stake), "err");
+      await refresh();
+    } else {
+      minesBuild(r.revealed, [], null, true);
+      document.getElementById("mines-msg").textContent = r.gems + " gemmes · " + r.multiplier.toFixed(2) + "x · " + eur(r.payout);
+      document.getElementById("mines-out").disabled = false;
+    }
+  } catch (ex) { toast(ex.message, "err"); }
+  minesBusy = false;
+}
+document.getElementById("mines-go").addEventListener("click", async () => {
+  if (minesBusy) return;
+  if (!(await waitAd())) return;
+  minesBusy = true;
+  document.getElementById("mines-go").disabled = true;
+  try {
+    const r = await API.post("mines_start", { stake_cents: selectedStake("stake-mines") });
+    minesId = r.id;
+    minesBuild([], [], null, true);
+    document.getElementById("mines-msg").textContent = "4 mines cachées. Avance, ou retire.";
+    document.getElementById("mines-out").disabled = true;
+    await refresh();
+  } catch (ex) {
+    toast(ex.message, "err");
+    document.getElementById("mines-go").disabled = false;
+  }
+  minesBusy = false;
+});
+document.getElementById("mines-out").addEventListener("click", async () => {
+  if (!minesId) return;
+  document.getElementById("mines-out").disabled = true;
+  try {
+    const r = await API.post("mines_cashout", { id: minesId });
+    minesId = null;
+    minesBuild([], r.mines || [], null, false);
+    document.getElementById("mines-msg").textContent = "Retiré " + r.multiplier.toFixed(2) + "x → +" + eur(r.payout);
+    document.getElementById("mines-go").disabled = false;
+    toast("Mines : +" + eur(r.payout), "gold");
+    await refresh();
+  } catch (ex) {
+    toast(ex.message, "err");
+    document.getElementById("mines-out").disabled = false;
+  }
+});
+document.getElementById("vip-day").addEventListener("click", () => buyVip("day"));
+document.getElementById("vip-week").addEventListener("click", () => buyVip("week"));
+async function buyVip(plan) {
+  try {
+    const r = await API.post("buy_vip", { plan });
+    toast(r.message || "Sans pub activé !", "gold");
+    await refresh();
+  } catch (ex) { toast(ex.message, "err"); }
+}
+
 
 // ===== EXPRESS (avion / crash) =====
 let crashId = null, crashRaf = null, crashStartPerf = 0, crashK = 0.07, crashBusy = false, crashPollAt = 0;
@@ -1180,7 +1278,11 @@ async function loadAdmin() {
       const add = document.createElement("button");
       add.className = "btn-sm"; add.textContent = "+0,50 €"; add.style.marginLeft = "6px";
       add.onclick = async () => { await API.post("admin/user_adjust", { id: u.id, delta: 50 }); loadAdmin(); toast("+0,50 € ajouté."); };
-      td.appendChild(ban); td.appendChild(add);
+
+      const vipb = document.createElement("button");
+      vipb.className = "btn-sm"; vipb.textContent = "⭐ VIP 7j"; vipb.style.marginLeft = "6px";
+      vipb.onclick = async () => { await API.post("admin/user_vip", { id: u.id, days: 7 }); loadAdmin(); toast("VIP 7 jours."); };
+      td.appendChild(ban); td.appendChild(add); td.appendChild(vipb);
       ub.appendChild(tr);
     });
 
