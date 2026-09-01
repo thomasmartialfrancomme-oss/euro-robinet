@@ -466,3 +466,9 @@ button{font-family:inherit;cursor:pointer}
 .top-click-ad:hover{filter:brightness(1.08)}
 .sponsor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;max-width:1080px;margin:8px auto 18px;padding:0 12px}
 .sponsor-card{min-height:88px;justify-content:center;border:2px solid #f59e0b !important;background:linear-gradient(135deg,#1e3a5f,#0f172a) !important}
+
+.sponsor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;max-width:1080px;margin:8px auto 18px;padding:0 12px}
+.sponsor-card{min-height:96px;justify-content:center;border:2px solid #f59e0b !important;background:linear-gradient(135deg,#1e3a5f,#0f172a) !important;padding:16px 14px;border-radius:14px;text-decoration:none;color:#fff;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+.sponsor-card.nsfw{border-color:#dc2626 !important;background:linear-gradient(135deg,#3f0d16,#1a0b10) !important}
+.sponsor-card.nsfw strong{color:#fca5a5}
+.adult-ads{margin-top:8px}
