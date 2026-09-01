@@ -412,3 +412,6 @@ button{font-family:inherit;cursor:pointer}
 .mine-cell.gem{background:rgba(34,197,94,.18);border-color:var(--green)}
 .mine-cell.boom{background:rgba(239,68,68,.25);border-color:var(--red)}
 .mine-cell.safe{opacity:.55}
+
+.sponsor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;max-width:1080px;margin:8px auto 18px;padding:0 12px}
+.sponsor-grid .sponsor-card{margin:0}

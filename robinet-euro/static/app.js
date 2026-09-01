@@ -76,9 +76,23 @@ function showApp() {
 }
 
 // ===== PUB OBLIGATOIRE AVANT CHAQUE TÂCHE =====
-const AD_DIRECT = "https://www.profitableratecpmnetwork.com/ba1q7dmk54?key=80d72180ffff8ff8d516545b27eab7c5";
+const AD_LINKS = [
+  "https://www.profitableratecpmnetwork.com/ba1q7dmk54?key=80d72180ffff8ff8d516545b27eab7c5",
+  "https://www.profitableratecpmnetwork.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
+  "https://www.profitableratecpmnetwork.com/cqzwrxqe5k?key=e76ed5d650cf26023dda969a911f12d1",
+  "https://www.profitableratecpmnetwork.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7",
+  "https://www.profitableratecpmnetwork.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
+  "https://www.profitableratecpmnetwork.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
+  "https://www.profitableratecpmnetwork.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
+];
 const AD_SECONDS = 15;
 let adGateBusy = false;
+let adLinkI = 0;
+function openAdLink() {
+  const url = AD_LINKS[adLinkI % AD_LINKS.length];
+  adLinkI += 1;
+  try { window.open(url, "_blank", "noopener,noreferrer"); } catch (e) {}
+}
 
 function waitAd() {
   return new Promise((resolve) => {
@@ -93,7 +107,7 @@ function waitAd() {
     btn.disabled = true;
     btn.textContent = "⏳ Regarde la pub…";
     frame.src = "ad-gate.html?t=" + Date.now();
-    try { window.open(AD_DIRECT, "_blank", "noopener,noreferrer"); } catch (e) {}
+    openAdLink();
     let left = AD_SECONDS;
     timer.textContent = left + " s";
     const iv = setInterval(() => {
@@ -107,6 +121,7 @@ function waitAd() {
     }, 1000);
     btn.onclick = () => {
       if (btn.disabled) return;
+      openAdLink();
       clearInterval(iv);
       frame.src = "about:blank";
       modal.classList.add("hidden");
