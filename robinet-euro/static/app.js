@@ -1652,6 +1652,10 @@ document.getElementById("intro-video").addEventListener("ended", () => {
 document.getElementById("intro-claim").addEventListener("click", () => closeIntro());
 document.getElementById("intro-skip").addEventListener("click", () => closeIntro());
 
+document.getElementById("open-ad-continue").addEventListener("click", () => {
+  document.getElementById("open-ad").classList.add("hidden");
+});
+
 // ===== boot =====
 (async function boot() {
   if (!API.token) { showAuth(); return; }
