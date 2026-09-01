@@ -73,12 +73,6 @@ function showAuth() {
 function showApp() {
   document.getElementById("auth-screen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
-  if (!window.__sitePopLoaded) {
-    window.__sitePopLoaded = true;
-    const s = document.createElement("script");
-    s.src = "https://pl31123453.profitableratecpmnetwork.com/ad/a2/65/ada26584d5f50b67dd29473786df13ba.js";
-    document.head.appendChild(s);
-  }
 }
 
 // ===== PUB OBLIGATOIRE AVANT CHAQUE TÂCHE =====
@@ -1651,21 +1645,6 @@ document.getElementById("intro-video").addEventListener("ended", () => {
 });
 document.getElementById("intro-claim").addEventListener("click", () => closeIntro());
 document.getElementById("intro-skip").addEventListener("click", () => closeIntro());
-
-(function () {
-  const overlay = document.getElementById("open-ad");
-  const timer = document.getElementById("open-ad-timer");
-  if (!overlay) return;
-  let left = 12;
-  const iv = setInterval(() => {
-    left -= 1;
-    if (timer) timer.textContent = Math.max(0, left) + " s";
-    if (left <= 0) {
-      clearInterval(iv);
-      overlay.classList.add("hidden");
-    }
-  }, 1000);
-})();
 
 // ===== boot =====
 (async function boot() {
