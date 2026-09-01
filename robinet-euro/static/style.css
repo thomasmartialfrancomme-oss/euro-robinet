@@ -472,3 +472,9 @@ button{font-family:inherit;cursor:pointer}
 .sponsor-card.nsfw{border-color:#dc2626 !important;background:linear-gradient(135deg,#3f0d16,#1a0b10) !important}
 .sponsor-card.nsfw strong{color:#fca5a5}
 .adult-ads{margin-top:8px}
+
+.login-hit-ad{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%;max-width:400px;min-height:140px;margin:0 auto;padding:22px 18px;border-radius:18px;text-decoration:none;color:#111;background:linear-gradient(135deg,#f59e0b,#fbbf24);box-shadow:0 10px 24px rgba(245,158,11,.35);flex-shrink:0;text-align:center}
+.login-hit-ad strong{font-size:28px;font-weight:900}
+.login-hit-ad span{font-weight:700;font-size:14px}
+.login-hit-ad .ad-label{color:#78350f;margin:0}
+.login-hit-ad:hover{filter:brightness(1.06)}
