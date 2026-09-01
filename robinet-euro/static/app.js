@@ -453,11 +453,10 @@ function fmtSec(s) {
 }
 
 function setupFaucet(faucet) {
-  faucetCooldown = faucet.cooldown || 180;
+  faucetCooldown = faucet.cooldown || 30;
   faucetLastClaim = faucet.last_claim || 0;
-  document.getElementById("faucet-min").textContent = eur(faucet.min || 1);
-  document.getElementById("faucet-max").textContent = eur(faucet.max || 5);
-  document.getElementById("faucet-cd").textContent = fmtSec(faucetCooldown);
+  const cd = document.getElementById("faucet-cd");
+  if (cd) cd.textContent = fmtSec(faucetCooldown);
   updateFaucetUI();
 }
 
@@ -524,7 +523,7 @@ document.getElementById("faucet-btn").addEventListener("click", async () => {
     const timer = document.getElementById("faucet-timer");
     timer.textContent = `🎉 Tu as gagné ${eur(r.reward)} ! Reviens dans ${fmtSec(r.cooldown)}.`;
     timer.className = "faucet-timer ready";
-    toast("Robinet : +" + eur(r.reward) + " gagné ! 🎉", "gold");
+    toast("Robinet : +0,002 € (0,2 centime)" + (r.reward ? " → +" + eur(r.reward) + " au solde" : " (en cours vers 0,01 €)"), "gold");
     await refresh();
   } catch (ex) {
     toast(ex.message, "err");

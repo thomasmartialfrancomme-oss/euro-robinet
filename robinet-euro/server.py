@@ -40,15 +40,16 @@ GITHUB_BACKUP_FILE = os.environ.get("GITHUB_BACKUP_FILE", "data.db")
 
 # ------- Paramètres -------
 MIN_WITHDRAW_CENTS = 600          # 6,00 €
-DAILY_CAP_CENTS = 100             # plafond de gain / jour (1,00 € au lieu de 5,00 €)
+DAILY_CAP_CENTS = 600             # 6,00 € / jour (seuil de retrait)
 VIDEO_COOLDOWN_SEC = 45           # délai entre 2 vidéos
-BONUS_CENTS = 2                   # bonus quotidien (0,02 €)
+BONUS_CENTS = 1                   # bonus quotidien (0,01 €)
 WHEEL_SPINS_PER_DAY = 5
-FAUCET_COOLDOWN_SEC = 90          # recharge du robinet (1 min 30)
-FAUCET_MIN_CENTS = 1              # gain minimum (0,01 €)
-FAUCET_MAX_CENTS = 2              # gain maximum (0,02 €)
-GAME_MAX_REWARD_CENTS = 5         # gain max par partie (0,05 €)
-GAME_DAILY_CAP_CENTS = 50         # plafond par jeu et par jour (0,50 €)
+FAUCET_COOLDOWN_SEC = 30          # toutes les 30 s
+FAUCET_MILLI = 2                  # 0,2 centime = 2/10 de centime (10 = 0,01 €)
+FAUCET_MIN_CENTS = 0
+FAUCET_MAX_CENTS = 0
+GAME_MAX_REWARD_CENTS = 2         # max 0,02 € / partie
+GAME_DAILY_CAP_CENTS = 15         # 0,15 € / jeu / jour
 GAMES = ("clicker", "memory")
 COINFLIP_STAKE_CENTS = 5          # mise du jeu Pile ou Face (0,05 €)
 ALLOWED_STAKES = (2, 5, 10)       # 0,02 / 0,05 / 0,10 €
@@ -365,6 +366,17 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN faucet_milli INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+    # gains trop élevés : on plafonne les offres existantes
+    conn.execute("UPDATE offers SET reward_cents=2 WHERE type='video' AND reward_cents>2")
+    conn.execute("UPDATE offers SET reward_cents=1 WHERE type IN ('ptc','survey') AND reward_cents>1")
+    conn.execute("UPDATE offers SET reward_cents=8 WHERE type='cpa' AND reward_cents>8")
+    conn.commit()
+
     # ---- seed admin ----
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
@@ -508,13 +520,13 @@ def handle_api(conn, path, method, body, token):
             conn.commit()
             uid = cur.lastrowid
             # bonus de bienvenue
-            conn.execute("UPDATE users SET balance_cents=balance_cents+5, total_earned_cents=total_earned_cents+5 WHERE id=?", (uid,))
-            add_transaction(conn, uid, "earn", 5, "Bonus de bienvenue")
+            conn.execute("UPDATE users SET balance_cents=balance_cents+1, total_earned_cents=total_earned_cents+1 WHERE id=?", (uid,))
+            add_transaction(conn, uid, "earn", 1, "Bonus de bienvenue")
             conn.commit()
             tok = secrets.token_hex(24)
             conn.execute("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)", (tok, uid, now_ms()))
             conn.commit()
-            return 200, {"token": tok, "message": "Compte créé ! +0,05 € offert."}
+            return 200, {"token": tok, "message": "Compte créé ! +0,01 € offert."}
         except sqlite3.IntegrityError:
             return 400, {"error": "Ce nom d'utilisateur est déjà pris."}
 
@@ -583,7 +595,7 @@ def handle_api(conn, path, method, body, token):
             wait = VIDEO_COOLDOWN_SEC - (now_ms() - last["completed_at"]) // 1000
             return 429, {"error": f"Attends encore {int(wait)} s avant une nouvelle vidéo."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": "Plafond journalier atteint (5,00 €). Reviens demain !"}
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Le retrait est à 6,00 € : reviens demain pour continuer."}
         reward = o["reward_cents"]
         conn.execute("INSERT INTO video_views(user_id,offer_id,completed_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], o["id"], now_ms(), reward))
@@ -607,7 +619,7 @@ def handle_api(conn, path, method, body, token):
         if last and (now_ms() - last["clicked_at"]) < day_ms:
             return 429, {"error": "Tu as déjà fait ce clic aujourd'hui."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
         reward = o["reward_cents"]
         conn.execute("INSERT INTO ptc_clicks(user_id,offer_id,clicked_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], o["id"], now_ms(), reward))
@@ -630,7 +642,7 @@ def handle_api(conn, path, method, body, token):
         if last:
             return 429, {"error": "Tu as déjà répondu à ce sondage."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
         reward = o["reward_cents"]
         conn.execute("INSERT INTO survey_answers(user_id,survey_id,answered_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], o["id"], now_ms(), reward))
@@ -667,8 +679,8 @@ def handle_api(conn, path, method, body, token):
         if spins >= WHEEL_SPINS_PER_DAY:
             return 429, {"error": f"Plus que {WHEEL_SPINS_PER_DAY} tours par jour."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
-        rewards = [0, 1, 2, 1, 3, 5, 1, 2, 1, 2, 1, 3]  # en cents (max 0,05 €)
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
+        rewards = [0, 0, 1, 0, 1, 2, 0, 1, 0, 0, 1, 0]  # max 0,02 €
         reward = random.choice(rewards)
         conn.execute("INSERT INTO wheel_spins(user_id,spun_at,reward_cents) VALUES(?,?,?)", (u["id"], now_ms(), reward))
         if reward > 0:
@@ -688,16 +700,26 @@ def handle_api(conn, path, method, body, token):
             wait = FAUCET_COOLDOWN_SEC - (now_ms() - last["claimed_at"]) // 1000
             return 429, {"error": f"Le robinet se recharge. Réessaie dans {fmt_wait(wait)}."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": "Plafond journalier atteint (5,00 €). Reviens demain !"}
-        reward = random.randint(FAUCET_MIN_CENTS, FAUCET_MAX_CENTS)
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Le retrait est à 6,00 € : reviens demain pour continuer."}
+        try:
+            milli = int(u["faucet_milli"] or 0)
+        except Exception:
+            milli = 0
+        milli += FAUCET_MILLI
+        cents = milli // 10
+        milli = milli % 10
+        conn.execute("UPDATE users SET faucet_milli=? WHERE id=?", (milli, u["id"]))
         conn.execute("INSERT INTO faucet_claims(user_id,claimed_at,reward_cents) VALUES(?,?,?)",
-                     (u["id"], now_ms(), reward))
-        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
-                     (reward, reward, u["id"]))
-        add_transaction(conn, u["id"], "earn", reward, "Robinet €")
+                     (u["id"], now_ms(), cents))
+        if cents > 0:
+            conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                         (cents, cents, u["id"]))
+            add_transaction(conn, u["id"], "earn", cents, "Robinet €")
+        else:
+            add_transaction(conn, u["id"], "earn", 0, "Robinet € (+0,002 €, en cours)")
         conn.commit()
-
-        return 200, {"reward": reward, "balance": balance(conn, u["id"]), "cooldown": FAUCET_COOLDOWN_SEC}
+        return 200, {"reward": cents, "milli": FAUCET_MILLI, "pending_milli": milli,
+                     "balance": balance(conn, u["id"]), "cooldown": FAUCET_COOLDOWN_SEC}
 
     if endpoint == "claim_fun" and method == "POST":
         u = require_auth(conn, token)
@@ -747,7 +769,7 @@ def handle_api(conn, path, method, body, token):
         if remaining <= 0:
             return 429, {"error": f"Plafond du jeu atteint pour aujourd'hui. Reviens demain !"}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
         reward = min(score, remaining)
         conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], game, now_ms(), reward))
@@ -1126,7 +1148,7 @@ def handle_api(conn, path, method, body, token):
         if last:
             return 429, {"error": "Tu as déjà fait cette offre."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
         reward = o["reward_cents"]
         conn.execute("INSERT INTO ptc_clicks(user_id,offer_id,clicked_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], o["id"], now_ms(), reward))
@@ -1341,8 +1363,9 @@ def dashboard_payload(conn, u):
         "leaderboard": [{"username": r["username"], "earned": r["total_earned_cents"]} for r in lb],
         "faucet": {
             "cooldown": FAUCET_COOLDOWN_SEC,
-            "min": FAUCET_MIN_CENTS,
-            "max": FAUCET_MAX_CENTS,
+            "min": 0,
+            "max": 0,
+            "milli": FAUCET_MILLI,
             "last_claim": last_faucet["claimed_at"] if last_faucet else 0,
         },
     }
