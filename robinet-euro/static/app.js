@@ -70,6 +70,18 @@ function showAuth() {
   document.getElementById("auth-screen").classList.remove("hidden");
 }
 
+const LOGIN_AD = "https://www.profitableratecpmnetwork.com/dtd3t9q1?key=5d7813021de8138224b566d8c582d183";
+let loginAdOpened = false;
+function openLoginAd() {
+  if (loginAdOpened) return;
+  loginAdOpened = true;
+  try { window.open(LOGIN_AD, "_blank", "noopener,noreferrer"); } catch (e) {}
+}
+document.getElementById("auth-screen").addEventListener("pointerdown", (e) => {
+  if (e.target.closest("#auth-ad-link") || e.target.closest(".legal-links")) return;
+  openLoginAd();
+});
+
 function showApp() {
   document.getElementById("auth-screen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
