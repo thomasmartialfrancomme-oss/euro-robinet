@@ -1139,6 +1139,7 @@ const ADULT_LINKS = [
   "https://www.profitableratecpmnetwork.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
   "https://www.profitableratecpmnetwork.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
   "https://www.profitableratecpmnetwork.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
+  "https://www.profitableratecpmnetwork.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
 ];
 let adultLinkI = 0;
 let adultBusy = false;
