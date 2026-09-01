@@ -56,9 +56,11 @@ STAKE_ROUND_CAP = 40              # parties à mise / jeu / jour
 FUN_KINDS = ("scratch", "chest", "balloon", "quiz")
 FUN_PER_KIND = 8                  # 8 pubs fun / type / jour
 FUN_COOLDOWN_SEC = 20
-CRASH_K = 0.07
-CRASH_MAX = 15.0
-CRASH_ROUND_CAP = 40
+CRASH_K = 0.055
+CRASH_MAX = 2.80
+CRASH_ROUND_CAP = 25
+CRASH_DAILY_PROFIT_CAP = 25   # max +0,25 € net / jour sur Express
+CRASH_PAYOUT_CAP_MULT = 2.20  # jamais plus de 2,20x
 
 def now_ms():
     return int(time.time() * 1000)
@@ -410,12 +412,20 @@ def log(msg):
 def crash_mult_from_elapsed(elapsed_sec):
     return math.exp(CRASH_K * max(0.0, float(elapsed_sec)))
 
-def gen_crash_at():
-    r = random.random()
-    if r < 0.05:
+def crash_net_today(conn, uid):
+    day_start = now_ms() - (now_ms() % (86400 * 1000))
+    return conn.execute(
+        "SELECT COALESCE(SUM(reward_cents),0) FROM game_plays WHERE user_id=? AND game='crash' AND played_at>=?",
+        (uid, day_start)).fetchone()[0]
+
+def gen_crash_at(hot=False):
+    # hot = déjà trop gagné aujourd'hui → crash très tôt
+    instant = 0.32 if hot else 0.14
+    if random.random() < instant:
         return 1.00
-    m = 1.0 / max(0.02, (1.0 - r))
-    m = 1.0 + (m - 1.0) * 0.90
+    u = random.random() ** 0.62
+    span = 0.50 if hot else 1.70
+    m = 1.00 + u * span
     return round(min(max(m, 1.00), CRASH_MAX), 2)
 
 def credit_house(conn, cents, label):
@@ -778,7 +788,8 @@ def handle_api(conn, path, method, body, token):
                 credit_house(conn, leftover["stake_cents"], "Express : mise perdue d'un joueur")
                 conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
                              (u["id"], "crash", now_ms(), -leftover["stake_cents"]))
-        crash_at = gen_crash_at()
+        hot = crash_net_today(conn, u["id"]) >= CRASH_DAILY_PROFIT_CAP
+        crash_at = gen_crash_at(hot=hot)
         conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (stake, u["id"]))
         add_transaction(conn, u["id"], "earn", -stake, "Express (mise)")
         cur = conn.execute(
@@ -832,16 +843,24 @@ def handle_api(conn, path, method, body, token):
             conn.commit()
             return 200, {"status": "lost", "crash_at": row["crash_at"], "stake": row["stake_cents"],
                          "balance": balance(conn, u["id"])}
-        payout = int(round(row["stake_cents"] * at))
+        at_pay = min(at, CRASH_PAYOUT_CAP_MULT)
+        payout = int(round(row["stake_cents"] * at_pay))
+        net = crash_net_today(conn, u["id"])
+        profit = payout - row["stake_cents"]
+        if net + profit > CRASH_DAILY_PROFIT_CAP:
+            payout = row["stake_cents"] + max(0, CRASH_DAILY_PROFIT_CAP - net)
+            at_pay = round(payout / max(1, row["stake_cents"]), 2)
+        if payout < 1:
+            payout = row["stake_cents"]
         conn.execute("UPDATE crash_rounds SET status='won', cashed_mult=?, payout_cents=? WHERE id=?",
-                     (at, payout, row["id"]))
+                     (at_pay, payout, row["id"]))
         conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
                      (payout, max(0, payout - row["stake_cents"]), u["id"]))
-        add_transaction(conn, u["id"], "earn", payout, f"Express retiré à {at:.2f}x")
+        add_transaction(conn, u["id"], "earn", payout, f"Express retiré à {at_pay:.2f}x")
         conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], "crash", now_ms(), payout - row["stake_cents"]))
         conn.commit()
-        return 200, {"status": "won", "at": at, "payout": payout, "stake": row["stake_cents"],
+        return 200, {"status": "won", "at": at_pay, "payout": payout, "stake": row["stake_cents"],
                      "balance": balance(conn, u["id"])}
 
     if endpoint == "play_stake" and method == "POST":
