@@ -187,6 +187,7 @@ document.querySelectorAll(".nav-btn").forEach((b) => {
     document.getElementById("tab-" + b.dataset.tab).classList.add("active");
     if (b.dataset.tab === "admin") loadAdmin();
     if (b.dataset.tab === "adult") syncAdultGate();
+    if (b.dataset.tab === "clicks") syncClicksGate();
   });
 });
 
@@ -1243,6 +1244,137 @@ document.getElementById("adult-claim").addEventListener("click", async () => {
 });
 
 syncAdultGate();
+
+function playAdultAd() {
+  return new Promise((resolve) => {
+    if (adGateBusy) { resolve(false); return; }
+    adGateBusy = true;
+    const modal = document.getElementById("ad-gate-modal");
+    const btn = document.getElementById("ad-gate-continue");
+    const timer = document.getElementById("ad-gate-timer");
+    const frame = document.getElementById("ad-gate-frame");
+    modal.classList.remove("hidden");
+    btn.disabled = true;
+    btn.textContent = "⏳ Pub −18…";
+    frame.src = "ad-gate.html?t=" + Date.now();
+    const url = ADULT_LINKS[adultLinkI % ADULT_LINKS.length];
+    adultLinkI += 1;
+    try { window.open(url, "_blank", "noopener,noreferrer"); } catch (e) {}
+    let left = ADULT_WAIT;
+    timer.textContent = left + " s";
+    const iv = setInterval(() => {
+      left -= 1;
+      timer.textContent = Math.max(0, left) + " s";
+      if (left <= 0) {
+        clearInterval(iv);
+        btn.disabled = false;
+        btn.textContent = "✅ Continuer";
+      }
+    }, 1000);
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      clearInterval(iv);
+      frame.src = "about:blank";
+      modal.classList.add("hidden");
+      adGateBusy = false;
+      resolve(true);
+    };
+  });
+}
+
+function syncClicksGate() {
+  const ok = localStorage.getItem("rb_age18") === "1";
+  const gate = document.getElementById("clicks-gate");
+  const room = document.getElementById("clicks-room");
+  if (!gate || !room) return;
+  gate.classList.toggle("hidden", ok);
+  room.classList.toggle("hidden", !ok);
+}
+document.getElementById("clicks-age-check").addEventListener("change", (e) => {
+  document.getElementById("clicks-age-ok").disabled = !e.target.checked;
+});
+document.getElementById("clicks-age-ok").addEventListener("click", () => {
+  if (!document.getElementById("clicks-age-check").checked) return;
+  localStorage.setItem("rb_age18", "1");
+  syncClicksGate();
+  syncAdultGate();
+});
+
+let lastClickInfo = { clicks: 0, chests: [] };
+function updateClickUI(info) {
+  if (!info) return;
+  lastClickInfo = info;
+  const cc = document.getElementById("click-count");
+  if (cc) cc.textContent = (info.clicks || 0) + " clics";
+  (info.chests || []).forEach((c) => {
+    const btn = document.getElementById("chest-btn-" + c.id);
+    const em = document.getElementById("chest-emoji-" + c.id);
+    const box = document.getElementById("chest-" + c.id);
+    if (!btn || !em || !box) return;
+    box.classList.toggle("ready", !!(c.ready && !c.opened));
+    box.classList.toggle("open", !!c.opened);
+    if (c.opened) {
+      em.textContent = "✨";
+      btn.disabled = true;
+      btn.textContent = "Ouvert · +" + eur(c.reward);
+    } else if (c.unlocked) {
+      em.textContent = "📦";
+      btn.disabled = false;
+      btn.textContent = "🎬 Pub −18 + ouvrir";
+    } else if (c.ready) {
+      em.textContent = "🔐";
+      btn.disabled = false;
+      btn.textContent = "🎬 Pub −18 + débloquer";
+    } else {
+      em.textContent = "🔒";
+      btn.disabled = true;
+      btn.textContent = "🔒 " + c.need + " clics";
+    }
+  });
+  const next = (info.chests || []).find((c) => !c.ready);
+  const hint = document.getElementById("click-hint");
+  if (hint) {
+    hint.textContent = next
+      ? (next.need - info.clicks) + " clics pour le coffre " + next.id
+      : "Tous les paliers atteints aujourd'hui.";
+  }
+}
+
+let clickTapBusy = false;
+document.getElementById("click-big").addEventListener("click", async () => {
+  if (clickTapBusy) return;
+  clickTapBusy = true;
+  const big = document.getElementById("click-big");
+  big.style.transform = "scale(.9)";
+  setTimeout(() => { big.style.transform = ""; }, 80);
+  try {
+    const r = await API.post("click_tap");
+    updateClickUI(r);
+  } catch (ex) { toast(ex.message, "err"); }
+  clickTapBusy = false;
+});
+
+async function chestAction(id) {
+  const c = (lastClickInfo.chests || []).find((x) => x.id === id);
+  if (!c || c.opened) return;
+  if (!(await playAdultAd())) return;
+  try {
+    if (!c.unlocked) {
+      const r = await API.post("click_unlock", { chest: id });
+      updateClickUI(r);
+      toast("Coffre débloqué ! Ouvre-le : encore une pub −18.");
+    } else {
+      const r = await API.post("click_open", { chest: id });
+      updateClickUI(r);
+      toast("Coffre : +" + eur(r.reward), "gold");
+      await refresh();
+    }
+  } catch (ex) { toast(ex.message, "err"); }
+}
+[1, 2, 3].forEach((id) => {
+  document.getElementById("chest-btn-" + id).addEventListener("click", () => chestAction(id));
+});
+syncClicksGate();
 
 // ===== BONUS =====
 document.getElementById("claim-bonus-btn").addEventListener("click", async () => {

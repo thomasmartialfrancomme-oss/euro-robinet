@@ -73,6 +73,12 @@ ADULT_REWARD_CENTS = 10           # 0,10 € (10 centimes) après 3 pubs
 ADULT_PER_DAY = 2                 # 2 fois / jour
 ADULT_VIEW_GAP_SEC = 12
 ADULT_VIEW_WINDOW_MS = 20 * 60 * 1000
+CLICK_GAP_MS = 120
+CLICK_CHESTS = (
+    {"id": 1, "need": 20, "reward": 1},
+    {"id": 2, "need": 50, "reward": 1},
+    {"id": 3, "need": 100, "reward": 2},
+)
 GIFT_CARDS = {
     "amazon-10": {"brand": "Amazon", "cents": 1000, "label": "Carte Amazon 10 €"},
     "amazon-15": {"brand": "Amazon", "cents": 1500, "label": "Carte Amazon 15 €"},
@@ -385,6 +391,18 @@ def init_db():
         conn.commit()
     except sqlite3.OperationalError:
         pass
+    for col, typ in (
+        ("click_n", "INTEGER NOT NULL DEFAULT 0"),
+        ("click_day", "INTEGER NOT NULL DEFAULT 0"),
+        ("click_unlocked", "INTEGER NOT NULL DEFAULT 0"),
+        ("click_opened", "INTEGER NOT NULL DEFAULT 0"),
+        ("click_last", "INTEGER NOT NULL DEFAULT 0"),
+    ):
+        try:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col} {typ}")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
     # gains trop élevés : on plafonne les offres existantes
     conn.execute("UPDATE offers SET reward_cents=2 WHERE type='video' AND reward_cents>2")
     conn.execute("UPDATE offers SET reward_cents=1 WHERE type IN ('ptc','survey') AND reward_cents>1")
@@ -811,6 +829,81 @@ def handle_api(conn, path, method, body, token):
         conn.commit()
         info = adult_progress(conn, u["id"])
         return 200, {"reward": reward, "balance": balance(conn, u["id"]), **info}
+
+    if endpoint == "click_tap" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        st = click_state(conn, u)
+        now = now_ms()
+        if st["last"] and (now - st["last"]) < CLICK_GAP_MS:
+            return 200, click_payload(st)
+        st["n"] += 1
+        st["last"] = now
+        save_click_state(conn, u["id"], st)
+        conn.commit()
+        return 200, click_payload(st)
+
+    if endpoint == "click_unlock" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        chest = next((c for c in CLICK_CHESTS if c["id"] == int(body.get("chest") or 0)), None)
+        if not chest:
+            return 400, {"error": "Coffre inconnu."}
+        st = click_state(conn, u)
+        bit = 1 << (chest["id"] - 1)
+        if st["n"] < chest["need"]:
+            return 400, {"error": f"Encore {chest['need'] - st['n']} clics pour ce coffre."}
+        if st["unlocked"] & bit:
+            return 200, click_payload(st)
+        last = conn.execute(
+            "SELECT played_at FROM game_plays WHERE user_id=? AND game LIKE 'click-ad%' ORDER BY played_at DESC LIMIT 1",
+            (u["id"],)).fetchone()
+        if last and (now_ms() - last["played_at"]) < ADULT_VIEW_GAP_SEC * 1000:
+            wait = ADULT_VIEW_GAP_SEC - (now_ms() - last["played_at"]) // 1000
+            return 429, {"error": f"Patiente encore {wait} s sur la pub −18."}
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], "click-ad-unlock", now_ms(), 0))
+        st["unlocked"] |= bit
+        save_click_state(conn, u["id"], st)
+        conn.commit()
+        return 200, click_payload(st)
+
+    if endpoint == "click_open" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
+            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
+        chest = next((c for c in CLICK_CHESTS if c["id"] == int(body.get("chest") or 0)), None)
+        if not chest:
+            return 400, {"error": "Coffre inconnu."}
+        st = click_state(conn, u)
+        bit = 1 << (chest["id"] - 1)
+        if not (st["unlocked"] & bit):
+            return 400, {"error": "Débloque d'abord ce coffre (pub −18)."}
+        if st["opened"] & bit:
+            return 400, {"error": "Coffre déjà ouvert aujourd'hui."}
+        last = conn.execute(
+            "SELECT played_at FROM game_plays WHERE user_id=? AND game LIKE 'click-ad%' ORDER BY played_at DESC LIMIT 1",
+            (u["id"],)).fetchone()
+        if last and (now_ms() - last["played_at"]) < ADULT_VIEW_GAP_SEC * 1000:
+            wait = ADULT_VIEW_GAP_SEC - (now_ms() - last["played_at"]) // 1000
+            return 429, {"error": f"Patiente encore {wait} s sur la pub −18."}
+        reward = int(chest["reward"])
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], "click-ad-open", now_ms(), reward))
+        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                     (reward, reward, u["id"]))
+        add_transaction(conn, u["id"], "earn", reward, f"Coffre clics #{chest['id']}")
+        st["opened"] |= bit
+        save_click_state(conn, u["id"], st)
+        conn.commit()
+        out = click_payload(st)
+        out["reward"] = reward
+        out["balance"] = balance(conn, u["id"])
+        return 200, out
 
     if endpoint == "play_game" and method == "POST":
         u = require_auth(conn, token)
@@ -1390,6 +1483,42 @@ def mines_mult_pct(gems):
         return MINES_MULT_PCT[-1]
     return MINES_MULT_PCT[gems]
 
+def day_start_ms():
+    return now_ms() - (now_ms() % (86400 * 1000))
+
+def click_state(conn, u):
+    day = day_start_ms()
+    try:
+        n = int(u["click_n"] or 0)
+        d = int(u["click_day"] or 0)
+        un = int(u["click_unlocked"] or 0)
+        op = int(u["click_opened"] or 0)
+        last = int(u["click_last"] or 0)
+    except Exception:
+        n, d, un, op, last = 0, 0, 0, 0, 0
+    if d != day:
+        n, un, op, last, d = 0, 0, 0, 0, day
+        save_click_state(conn, u["id"], {"n": 0, "unlocked": 0, "opened": 0, "last": 0, "day": day})
+        conn.commit()
+    return {"n": n, "unlocked": un, "opened": op, "last": last, "day": d}
+
+def save_click_state(conn, uid, st):
+    conn.execute(
+        "UPDATE users SET click_n=?, click_day=?, click_unlocked=?, click_opened=?, click_last=? WHERE id=?",
+        (st["n"], st.get("day", day_start_ms()), st["unlocked"], st["opened"], st["last"], uid))
+
+def click_payload(st):
+    chests = []
+    for c in CLICK_CHESTS:
+        bit = 1 << (c["id"] - 1)
+        chests.append({
+            "id": c["id"], "need": c["need"], "reward": c["reward"],
+            "unlocked": bool(st["unlocked"] & bit),
+            "opened": bool(st["opened"] & bit),
+            "ready": st["n"] >= c["need"],
+        })
+    return {"clicks": st["n"], "chests": chests}
+
 def adult_progress(conn, uid):
     day_start = now_ms() - (now_ms() % (86400 * 1000))
     claims_today = conn.execute(
@@ -1463,6 +1592,7 @@ def dashboard_payload(conn, u):
             "last_claim": last_faucet["claimed_at"] if last_faucet else 0,
         },
         "adult": adult_progress(conn, u["id"]),
+        "clicks": click_payload(click_state(conn, u)),
     }
 
 # ---------------- HTTP SERVER ----------------
