@@ -192,6 +192,7 @@ def _backup_loop():
 
 def start_persistence():
     restore_db()
+    threading.Timer(8.0, lambda: backup_db(False)).start()
     t = threading.Thread(target=_backup_loop, daemon=True)
     t.start()
     atexit.register(lambda: backup_db(True))
