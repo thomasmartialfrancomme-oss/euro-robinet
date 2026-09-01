@@ -772,7 +772,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ext = os.path.splitext(fpath)[1]
         ctype = {"html": "text/html; charset=utf-8", "css": "text/css; charset=utf-8",
                  "js": "application/javascript; charset=utf-8", "svg": "image/svg+xml",
-                 "png": "image/png", "jpg": "image/jpeg", "ico": "image/x-icon"}.get(ext.lstrip("."), "application/octet-stream")
+                 "png": "image/png", "jpg": "image/jpeg", "ico": "image/x-icon",
+                 "txt": "text/plain; charset=utf-8"}.get(ext.lstrip("."), "application/octet-stream")
         with open(fpath, "rb") as f:
             data = f.read()
         self.send_response(200)
