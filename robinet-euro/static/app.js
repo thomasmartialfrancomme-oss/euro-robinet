@@ -37,6 +37,32 @@ function toast(msg, type) {
   t.textContent = msg;
   c.appendChild(t);
   setTimeout(() => t.remove(), 3500);
+  if (type === "gold") playCashSound();
+}
+
+function playCashSound() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!window.__cashAudio) window.__cashAudio = new AC();
+    const ctx = window.__cashAudio;
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    const notes = [987.8, 1318.5, 1760];
+    notes.forEach((freq, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "triangle";
+      o.frequency.setValueAtTime(freq, now + i * 0.06);
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.14, now + 0.015 + i * 0.06);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22 + i * 0.07);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(now + i * 0.06);
+      o.stop(now + 0.28 + i * 0.07);
+    });
+  } catch (e) {}
 }
 
 function showAuth() {
@@ -968,7 +994,7 @@ document.getElementById("wd-submit").addEventListener("click", async () => {
   const cents = Math.round(amount * 100);
   try {
     const r = await API.post("withdraw", { amount_cents: cents, method, details });
-    toast(r.message || "Demande envoyée !", "gold");
+    toast(r.message || "Demande envoyée !");
     document.getElementById("wd-amount").value = "";
     document.getElementById("wd-details").value = "";
     await refresh();
