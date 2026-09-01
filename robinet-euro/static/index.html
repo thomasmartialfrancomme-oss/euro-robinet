@@ -50,6 +50,7 @@
       <button class="nav-btn active" data-tab="home">🏠 Accueil</button>
       <button class="nav-btn" data-tab="earn">🎬 Gagner</button>
       <button class="nav-btn" data-tab="games">🎮 Jeux</button>
+      <button class="nav-btn" data-tab="fun">🎉 Fun</button>
       <button class="nav-btn" data-tab="withdraw">💸 Retrait</button>
       <button class="nav-btn" data-tab="history">📜 Historique</button>
       <button class="nav-btn" data-tab="admin" id="admin-nav" style="display:none">⚙️ Admin</button>
@@ -86,13 +87,13 @@
       <div class="hero">
         <div class="hero-text">
           <h1>Bonjour <span id="hero-name">!</span> 👋</h1>
-          <p>Voici ton tableau de bord. Gagne des centimes et retire-les dès <b>2,00 €</b>.</p>
+          <p>Voici ton tableau de bord. Gagne des centimes et retire-les dès <b>6,00 €</b>.</p>
         </div>
         <div class="hero-balance">
           <div class="big-balance">€ <span id="hero-balance">0,00</span></div>
           <div class="sub">Solde disponible</div>
           <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
-          <div class="sub small" id="progress-label">0,00 € / 2,00 € pour retirer</div>
+          <div class="sub small" id="progress-label">0,00 € / 6,00 € pour retirer</div>
         </div>
       </div>
 
@@ -319,17 +320,59 @@
       </div>
     </section>
 
+    <!-- ===== FUN ===== -->
+    <section id="tab-fun" class="tab">
+      <h1 class="page-title">🎉 Fun — pubs = quelques centimes</h1>
+      <p class="muted">Regarde une pub, puis réclame <b>0,01 €</b> (parfois 0,02 €). 8 fois par jeu et par jour. Retrait dès <b>6,00 €</b>.</p>
+      <div class="fun-grid">
+        <div class="fun-card">
+          <div class="fun-emoji" id="fun-scratch-emoji">🎫</div>
+          <h3>Carte à gratter</h3>
+          <p class="muted">Gratte la carte après la pub. Presque toujours 0,01 €.</p>
+          <div class="scratch-box" id="scratch-box">❓</div>
+          <button class="game-btn gold" id="fun-scratch">🎬 Pub + gratter</button>
+          <div class="coinflip-result" id="fun-scratch-res"></div>
+        </div>
+        <div class="fun-card">
+          <div class="fun-emoji" id="fun-chest-emoji">📦</div>
+          <h3>Coffre mystère</h3>
+          <p class="muted">Ouvre le coffre. Petite surprise en centimes.</p>
+          <button class="game-btn gold" id="fun-chest">🎬 Pub + ouvrir</button>
+          <div class="coinflip-result" id="fun-chest-res"></div>
+        </div>
+        <div class="fun-card">
+          <div class="fun-emoji">🎈</div>
+          <h3>Bulles d'or</h3>
+          <p class="muted">Éclate les bulles après la pub pour la pièce.</p>
+          <div class="balloon-row" id="balloon-row">
+            <span class="balloon">🎈</span><span class="balloon">🎈</span><span class="balloon">🎈</span><span class="balloon">🎈</span><span class="balloon">🎈</span>
+          </div>
+          <button class="game-btn gold" id="fun-balloon">🎬 Pub + éclater</button>
+          <div class="coinflip-result" id="fun-balloon-res"></div>
+        </div>
+        <div class="fun-card">
+          <div class="fun-emoji">🤓</div>
+          <h3>Quiz blague</h3>
+          <p class="muted">1 question pour rire, puis 0,01 € (pub d'abord).</p>
+          <div class="quiz-q" id="fun-quiz-q">Clique pour une question.</div>
+          <div class="coinflip-buttons" id="fun-quiz-opts"></div>
+          <button class="game-btn gold" id="fun-quiz">🎬 Pub + quiz</button>
+          <div class="coinflip-result" id="fun-quiz-res"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== RETRAIT ===== -->
     <section id="tab-withdraw" class="tab">
       <h1 class="page-title">💸 Retrait</h1>
-      <p class="muted">Retire tes gains dès <b>2,00 €</b>.</p>
+      <p class="muted">Retire tes gains dès <b>6,00 €</b>.</p>
       <div class="two-col">
         <div class="card">
           <h2>Demander un retrait</h2>
           <div class="field">
             <label>Montant (€)</label>
-            <input type="number" id="wd-amount" min="2" step="0.01" placeholder="2.00">
-            <div class="sub small">Solde : <span id="wd-balance">0,00 €</span> · Minimum : 2,00 €</div>
+            <input type="number" id="wd-amount" min="6" step="0.01" placeholder="6.00">
+            <div class="sub small">Solde : <span id="wd-balance">0,00 €</span> · Minimum : 6,00 €</div>
           </div>
           <div class="field">
             <label>Méthode</label>

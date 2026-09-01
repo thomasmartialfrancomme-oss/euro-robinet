@@ -21,7 +21,7 @@ STATIC = os.path.join(BASE, "static")
 PORT = int(os.environ.get("PORT", 8000))
 
 # ------- Paramètres -------
-MIN_WITHDRAW_CENTS = 200          # 2,00 €
+MIN_WITHDRAW_CENTS = 600          # 6,00 €
 DAILY_CAP_CENTS = 100             # plafond de gain / jour (1,00 € au lieu de 5,00 €)
 VIDEO_COOLDOWN_SEC = 45           # délai entre 2 vidéos
 BONUS_CENTS = 2                   # bonus quotidien (0,02 €)
@@ -35,6 +35,9 @@ GAMES = ("clicker", "memory")
 COINFLIP_STAKE_CENTS = 5          # mise du jeu Pile ou Face (0,05 €)
 ALLOWED_STAKES = (2, 5, 10)       # 0,02 / 0,05 / 0,10 €
 STAKE_ROUND_CAP = 40              # parties à mise / jeu / jour
+FUN_KINDS = ("scratch", "chest", "balloon", "quiz")
+FUN_PER_KIND = 8                  # 8 pubs fun / type / jour
+FUN_COOLDOWN_SEC = 20
 
 def now_ms():
     return int(time.time() * 1000)
@@ -445,7 +448,40 @@ def handle_api(conn, path, method, body, token):
                      (reward, reward, u["id"]))
         add_transaction(conn, u["id"], "earn", reward, "Robinet €")
         conn.commit()
+
         return 200, {"reward": reward, "balance": balance(conn, u["id"]), "cooldown": FAUCET_COOLDOWN_SEC}
+
+    if endpoint == "claim_fun" and method == "POST":
+        u = require_auth(conn, token)
+        if not u:
+            return 401, {"error": "Non connecté."}
+        kind = body.get("kind")
+        if kind not in FUN_KINDS:
+            return 400, {"error": "Jeu fun inconnu."}
+        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
+            return 429, {"error": "Plafond journalier atteint. Reviens demain !"}
+        day_start = now_ms() - (now_ms() % (86400 * 1000))
+        n = conn.execute(
+            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
+            (u["id"], "fun-" + kind, day_start)).fetchone()[0]
+        if n >= FUN_PER_KIND:
+            return 429, {"error": "Tu as déjà trop joué à ça aujourd'hui. Reviens demain !"}
+        last = conn.execute(
+            "SELECT played_at FROM game_plays WHERE user_id=? AND game LIKE 'fun-%' ORDER BY played_at DESC LIMIT 1",
+            (u["id"],)).fetchone()
+        if last and (now_ms() - last["played_at"]) < FUN_COOLDOWN_SEC * 1000:
+            wait = FUN_COOLDOWN_SEC - (now_ms() - last["played_at"]) // 1000
+            return 429, {"error": f"Encore un peu… réessaie dans {wait} s."}
+        reward = 2 if random.random() < 0.12 else 1
+        names = {"scratch": "Carte à gratter", "chest": "Coffre mystère", "balloon": "Bulles d'or", "quiz": "Quiz fun"}
+        label = names.get(kind, "Fun")
+        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
+                     (u["id"], "fun-" + kind, now_ms(), reward))
+        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
+                     (reward, reward, u["id"]))
+        add_transaction(conn, u["id"], "earn", reward, label)
+        conn.commit()
+        return 200, {"reward": reward, "balance": balance(conn, u["id"]), "left": FUN_PER_KIND - n - 1}
 
     if endpoint == "play_game" and method == "POST":
         u = require_auth(conn, token)
@@ -634,7 +670,7 @@ def handle_api(conn, path, method, body, token):
         details = (body.get("details") or "").strip()
         amount = int(body.get("amount_cents") or 0)
         if amount < MIN_WITHDRAW_CENTS:
-            return 400, {"error": f"Le retrait minimum est de 2,00 € (tu as demandé {cents_to_str(amount)} €)."}
+            return 400, {"error": f"Le retrait minimum est de 6,00 € (tu as demandé {cents_to_str(amount)} €)."}
         if amount > u["balance_cents"]:
             return 400, {"error": "Solde insuffisant."}
         if method not in ("paypal", "virement", "crypto"):

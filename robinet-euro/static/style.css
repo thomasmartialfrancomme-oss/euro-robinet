@@ -385,3 +385,12 @@ button{font-family:inherit;cursor:pointer}
 .ad-gate-box{max-width:780px}
 .ad-gate-frame{width:100%;height:420px;border:1px solid var(--line);border-radius:12px;background:#000;margin:12px 0}
 .ad-gate-timer{font-size:22px;font-weight:800;color:var(--gold);margin:8px 0 14px}
+
+.fun-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:16px}
+.fun-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;text-align:center;display:flex;flex-direction:column;gap:10px}
+.fun-emoji{font-size:48px;line-height:1.2}
+.scratch-box{font-size:42px;background:var(--bg2);border:1px dashed var(--line);border-radius:12px;padding:18px}
+.balloon-row{display:flex;justify-content:center;gap:8px;font-size:28px;min-height:40px}
+.balloon{cursor:default;transition:transform .15s}
+.balloon.pop{transform:scale(1.4);opacity:0;transition:.25s}
+.quiz-q{font-weight:700;font-size:14px;min-height:36px;color:var(--text)}

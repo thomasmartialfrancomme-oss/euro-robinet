@@ -813,7 +813,75 @@ async function playColor(choice) {
   setBusy(["color-rouge","color-noir"], false);
 }
 document.getElementById("color-rouge").addEventListener("click", () => playColor("rouge"));
+
 document.getElementById("color-noir").addEventListener("click", () => playColor("noir"));
+
+// ===== FUN (pubs → quelques centimes) =====
+const FUN_QUIZ = [
+  { q: "Combien de centimes dans 1 euro ?", a: ["10", "100", "1000"], ok: 1 },
+  { q: "Le koala est-il un ours ?", a: ["Oui", "Non", "Parfois"], ok: 1 },
+  { q: "Quelle est la couleur du cheval blanc d'Henri IV ?", a: ["Blanc", "Noir", "Invisible"], ok: 0 },
+  { q: "2 + 2 = ?", a: ["3", "4", "22"], ok: 1 },
+];
+async function claimFun(kind, resId, onWin) {
+  if (!(await waitAd())) return null;
+  const box = document.getElementById(resId);
+  box.className = "coinflip-result";
+  box.textContent = "…";
+  try {
+    const r = await API.post("claim_fun", { kind });
+    box.textContent = `+${eur(r.reward)}  (encore ${r.left} aujourd'hui)`;
+    box.classList.add("win");
+    toast("Fun : +" + eur(r.reward), "gold");
+    if (onWin) onWin(r);
+    await refresh();
+    return r;
+  } catch (ex) {
+    box.textContent = ex.message;
+    toast(ex.message, "err");
+    return null;
+  }
+}
+document.getElementById("fun-scratch").addEventListener("click", async () => {
+  document.getElementById("scratch-box").textContent = "✨";
+  const r = await claimFun("scratch", "fun-scratch-res", (res) => {
+    document.getElementById("scratch-box").textContent = res.reward >= 2 ? "💶" : "🪙";
+  });
+  if (!r) document.getElementById("scratch-box").textContent = "❓";
+});
+document.getElementById("fun-chest").addEventListener("click", async () => {
+  document.getElementById("fun-chest-emoji").textContent = "📦";
+  await claimFun("chest", "fun-chest-res", (res) => {
+    document.getElementById("fun-chest-emoji").textContent = res.reward >= 2 ? "💎" : "🪙";
+  });
+});
+document.getElementById("fun-balloon").addEventListener("click", async () => {
+  const r = await claimFun("balloon", "fun-balloon-res");
+  if (!r) return;
+  document.querySelectorAll("#balloon-row .balloon").forEach((b, i) => {
+    setTimeout(() => { b.classList.add("pop"); b.textContent = i === 2 ? "🪙" : "💥"; }, i * 120);
+  });
+  setTimeout(() => {
+    document.querySelectorAll("#balloon-row .balloon").forEach((b) => { b.classList.remove("pop"); b.textContent = "🎈"; });
+  }, 1600);
+});
+document.getElementById("fun-quiz").addEventListener("click", async () => {
+  const item = FUN_QUIZ[Math.floor(Math.random() * FUN_QUIZ.length)];
+  document.getElementById("fun-quiz-q").textContent = item.q;
+  const opts = document.getElementById("fun-quiz-opts");
+  opts.innerHTML = "";
+  item.a.forEach((label, i) => {
+    const b = document.createElement("button");
+    b.className = "game-btn small";
+    b.textContent = label;
+    b.onclick = async () => {
+      opts.querySelectorAll("button").forEach((x) => x.disabled = true);
+      await claimFun("quiz", "fun-quiz-res");
+    };
+    opts.appendChild(b);
+  });
+});
+
 
 
 // ===== BONUS =====
