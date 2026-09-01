@@ -1233,6 +1233,7 @@ def handle_api(conn, path, method, body, token):
         details = (body.get("details") or "").strip()
         amount = int(body.get("amount_cents") or 0)
         if method == "carte":
+            return 400, {"error": "Les cartes cadeaux arrivent bientôt. Pas encore disponibles."}
             gift = GIFT_CARDS.get(body.get("gift_id") or "")
             if not gift:
                 return 400, {"error": "Carte cadeau inconnue."}

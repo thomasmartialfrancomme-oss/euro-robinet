@@ -438,3 +438,5 @@ button{font-family:inherit;cursor:pointer}
 .gc-amazon .gc-brand{color:#ff9900;font-family:Arial,sans-serif}
 .gc-google{background:linear-gradient(135deg,#34a853,#188038)}
 .gc-steam{background:linear-gradient(135deg,#1b2838,#171a21);border-bottom:4px solid #66c0f4}
+.gift-card.soon{position:relative;opacity:.72;filter:grayscale(.25);cursor:not-allowed}
+.gift-card.soon .gc-soon{margin-top:8px;display:inline-block;background:rgba(0,0,0,.55);color:#fde68a;font-weight:800;font-size:12px;padding:4px 10px;border-radius:999px;letter-spacing:.3px}
