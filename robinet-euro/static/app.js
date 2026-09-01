@@ -1662,23 +1662,3 @@ document.getElementById("intro-skip").addEventListener("click", () => closeIntro
     API.logout();
   }
 })();
-("intro-play").classList.add("hidden");
-  document.getElementById("intro-claim").classList.remove("hidden");
-});
-document.getElementById("intro-video").addEventListener("ended", () => {
-  document.getElementById("intro-claim").classList.remove("hidden");
-  document.getElementById("intro-play").classList.add("hidden");
-});
-document.getElementById("intro-claim").addEventListener("click", () => closeIntro());
-document.getElementById("intro-skip").addEventListener("click", () => closeIntro());
-
-// ===== boot =====
-(async function boot() {
-  if (!API.token) { showAuth(); return; }
-  try {
-    await refresh();
-    showApp();
-  } catch (e) {
-    API.logout();
-  }
-})();
