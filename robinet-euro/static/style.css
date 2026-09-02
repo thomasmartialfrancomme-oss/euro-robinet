@@ -481,3 +481,6 @@ button{font-family:inherit;cursor:pointer}
 
 .login-hit-ad-box{min-height:auto;max-width:780px;cursor:default}
 .login-ad-frame{width:100%;height:420px;border:0;border-radius:12px;background:#fff;margin-top:8px}
+
+.login-hit-row{display:flex;flex-wrap:wrap;justify-content:center;align-items:stretch;gap:12px;width:100%;max-width:1100px}
+.login-hit-row .login-hit-ad{flex:1 1 220px;max-width:340px}
