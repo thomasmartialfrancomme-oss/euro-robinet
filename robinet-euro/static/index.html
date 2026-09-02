@@ -4,19 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Robinet € — Gagne de l'argent en ligne</title>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2329593622131977"
-     crossorigin="anonymous"></script>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8626762461400111"
-     crossorigin="anonymous"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <!-- ============ ÉCRAN AUTH ============ -->
-<div id="auth-screen" class="auth-screen">
-  <div class="auth-card">
+<div id="auth-screen" class="auth-screen hidden">
+  <div class="auth-top">
     <div class="logo-big">💧 Robinet <span>€</span></div>
     <p class="tagline">Gagne de l'argent en regardant des pubs, en cliquant et en répondant à des sondages.</p>
+    <div class="ad-grid" id="ad-grid-auth"></div>
+  </div>
+  <div class="auth-card">
     <div class="auth-tabs">
       <button class="auth-tab active" data-mode="login">Connexion</button>
       <button class="auth-tab" data-mode="register">Inscription</button>
@@ -41,7 +40,6 @@
       <a href="mentions-legales.html">Mentions légales</a> · <a href="confidentialite.html">Politique de confidentialité</a>
     </div>
   </div>
-
 </div>
 
 <!-- ============ APP ============ -->
@@ -52,36 +50,18 @@
       <button class="nav-btn active" data-tab="home">🏠 Accueil</button>
       <button class="nav-btn" data-tab="earn">🎬 Gagner</button>
       <button class="nav-btn" data-tab="games">🎮 Jeux</button>
-      <button class="nav-btn" data-tab="fun">🎉 Fun</button>
       <button class="nav-btn" data-tab="withdraw">💸 Retrait</button>
       <button class="nav-btn" data-tab="history">📜 Historique</button>
       <button class="nav-btn" data-tab="admin" id="admin-nav" style="display:none">⚙️ Admin</button>
     </nav>
     <div class="user-box">
       <div class="balance-pill" title="Solde disponible">💰 <span id="top-balance">0,00 €</span></div>
-      <div class="vip-pill hidden" id="vip-pill">⭐ Sans pub</div>
       <div class="user-menu">
         <span id="top-username">—</span>
         <button class="btn-ghost" id="logout-btn" title="Déconnexion">⎋</button>
       </div>
     </div>
   </header>
-
-      <div class="ad-wrap">
-        <div class="ad-label">Publicité</div>
-        <div class="ad-slot ad-728">
-          <script>
-            atOptions = {
-              'key' : 'bedeadabf78f1ffc5792cda9d7d61537',
-              'format' : 'iframe',
-              'height' : 90,
-              'width' : 728,
-              'params' : {}
-            };
-          </script>
-          <script src="https://www.highrevenueformat.com/bedeadabf78f1ffc5792cda9d7d61537/invoke.js"></script>
-        </div>
-      </div>
 
   <main class="container">
 
@@ -90,50 +70,32 @@
       <div class="hero">
         <div class="hero-text">
           <h1>Bonjour <span id="hero-name">!</span> 👋</h1>
-          <p>Voici ton tableau de bord. Gagne des centimes et retire-les dès <b>6,00 €</b>.</p>
+          <p>Voici ton tableau de bord. Gagne des centimes et retire-les dès <b>2,00 €</b>.</p>
         </div>
         <div class="hero-balance">
           <div class="big-balance">€ <span id="hero-balance">0,00</span></div>
           <div class="sub">Solde disponible</div>
           <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
-          <div class="sub small" id="progress-label">0,00 € / 6,00 € pour retirer</div>
-        </div>
-      </div>
-
-      <div class="ad-wrap">
-        <div class="ad-label">Publicité</div>
-        <div class="ad-slot ad-native">
-          <script async="async" data-cfasync="false" src="https://pl31123454.profitableratecpmnetwork.com/fd53697242f40d81343b24167666b1cf/invoke.js"></script>
-          <div id="container-fd53697242f40d81343b24167666b1cf"></div>
+          <div class="sub small" id="progress-label">0,00 € / 2,00 € pour retirer</div>
         </div>
       </div>
 
       <div class="stat-grid">
         <div class="stat"><div class="stat-val" id="stat-today">0,00 €</div><div class="stat-label">Gagné aujourd'hui</div></div>
         <div class="stat"><div class="stat-val" id="stat-total">0,00 €</div><div class="stat-label">Total gagné</div></div>
-        <div class="stat"><div class="stat-val" id="stat-dailycap">6,00 €</div><div class="stat-label">Plafond / jour</div></div>
+        <div class="stat"><div class="stat-val" id="stat-dailycap">5,00 €</div><div class="stat-label">Plafond / jour</div></div>
       </div>
 
       <div class="two-col">
         <div class="card">
           <h2>🎁 Bonus quotidien</h2>
-          <p>Réclame ton bonus de <b>0,01 €</b> chaque jour.</p>
+          <p>Réclame ton bonus de <b>0,05 €</b> chaque jour.</p>
           <button class="btn-primary" id="claim-bonus-btn">Réclamer le bonus</button>
         </div>
         <div class="card">
           <h2>🎡 Roue de la fortune</h2>
-          <p>Jusqu'à 5 tours par jour. Gagne jusqu'à <b>0,02 €</b> !</p>
+          <p>Jusqu'à 5 tours par jour. Gagne jusqu'à <b>0,05 €</b> !</p>
           <button class="btn-primary" id="spin-btn">Lancer la roue</button>
-        </div>
-      </div>
-
-      <div class="card" id="vip-card">
-        <h2>⭐ Pass sans publicité</h2>
-        <p class="muted">Payé avec ton solde. Plus de pubs de 15 s. L’argent va à la caisse du site.</p>
-        <p id="vip-status" class="muted">Pas d’abonnement.</p>
-        <div class="coinflip-buttons">
-          <button class="btn-primary" id="vip-day">24 h — 0,50 €</button>
-          <button class="btn-primary" id="vip-week">7 jours — 2,00 €</button>
         </div>
       </div>
 
@@ -163,27 +125,11 @@
           <h2>💧 Le Robinet €</h2>
           <p class="muted">Ouvre le robinet pour gagner une petite somme <b>à chaque fois</b>, en continu !</p>
           <div class="faucet-info">
-            <span class="faucet-reward-range">🎁 <b>0,002 €</b> (0,2 centime) par ouverture</span>
-            <span class="faucet-cooldown">⏱️ toutes les <b id="faucet-cd">30 s</b></span>
+            <span class="faucet-reward-range">🎁 de <b id="faucet-min">0,01 €</b> à <b id="faucet-max">0,05 €</b> par ouverture</span>
+            <span class="faucet-cooldown">⏱️ toutes les <b id="faucet-cd">3 min</b></span>
           </div>
           <button class="faucet-btn" id="faucet-btn">💧 Ouvrir le robinet</button>
           <div class="faucet-timer" id="faucet-timer"></div>
-        </div>
-      </div>
-
-      <div class="ad-wrap">
-        <div class="ad-label">Publicité</div>
-        <div class="ad-slot ad-160">
-          <script>
-            atOptions = {
-              'key' : '538194440bb3f2144fa433914c79298a',
-              'format' : 'iframe',
-              'height' : 300,
-              'width' : 160,
-              'params' : {}
-            };
-          </script>
-          <script src="https://www.highrevenueformat.com/538194440bb3f2144fa433914c79298a/invoke.js"></script>
         </div>
       </div>
 
@@ -198,59 +144,16 @@
     </section>
 
     <!-- ===== JEUX ===== -->
-
     <section id="tab-games" class="tab">
       <h1 class="page-title">🎮 Jeux — gagne des pièces en jouant</h1>
-      <p class="muted">Jeux gratuits, ou mise tes centimes : tu gagnes ou tu perds selon le résultat.</p>
-
-      <div class="crash-card" id="game-crash">
-        <div class="crash-head">
-          <div>
-            <h2>✈️ Express</h2>
-            <p class="muted">L’avion décolle, le multiplicateur monte. <b>Retire avant le crash</b> sinon tu perds ta mise. Plafond ~2,2x · max +0,25 € / jour. Les mises perdues vont à la caisse du site.</p>
-          </div>
-        </div>
-        <div class="crash-sky" id="crash-sky">
-          <div class="crash-plane" id="crash-plane">✈️</div>
-          <div class="crash-mult" id="crash-mult">1.00x</div>
-        </div>
-        <div class="crash-msg" id="crash-msg">Choisis ta mise et décolle.</div>
-        <div class="stake-row">
-          <span class="muted">Mise</span>
-          <label class="stake-chip"><input type="radio" name="stake-crash" value="2"> 0,02 €</label>
-          <label class="stake-chip"><input type="radio" name="stake-crash" value="5" checked> 0,05 €</label>
-          <label class="stake-chip"><input type="radio" name="stake-crash" value="10"> 0,10 €</label>
-        </div>
-        <div class="coinflip-buttons">
-          <button class="game-btn gold" id="crash-go">✈️ Décoller</button>
-          <button class="game-btn" id="crash-out" disabled>💸 Retirer</button>
-        </div>
-      </div>
-
-
-      <div class="crash-card" id="game-mines">
-        <h2>💎 Mines</h2>
-        <p class="muted">Grille 5×5, <b>4 mines cachées</b>. Avance case par case. Tu peux retirer à tout moment. Une mine = tu perds tout (ça va à l’admin).</p>
-        <div class="mines-grid" id="mines-grid"></div>
-        <div class="crash-msg" id="mines-msg">Choisis ta mise, puis commence.</div>
-        <div class="stake-row">
-          <span class="muted">Mise</span>
-          <label class="stake-chip"><input type="radio" name="stake-mines" value="2"> 0,02 €</label>
-          <label class="stake-chip"><input type="radio" name="stake-mines" value="5" checked> 0,05 €</label>
-          <label class="stake-chip"><input type="radio" name="stake-mines" value="10"> 0,10 €</label>
-        </div>
-        <div class="coinflip-buttons">
-          <button class="game-btn gold" id="mines-go">▶️ Commencer</button>
-          <button class="game-btn" id="mines-out" disabled>💸 Retirer</button>
-        </div>
-      </div>
+      <p class="muted">Joue à nos mini-jeux et gagne de l'argent à chaque partie !</p>
 
       <div class="game-grid">
         <!-- CLICKER -->
         <div class="game-card" id="game-clicker">
           <div class="game-icon">👆</div>
           <h3>Clicker Fou</h3>
-          <p class="muted">Clique sur la pièce le plus de fois possible en 15 secondes. 1 clic = 0,01 € (max 0,02 €).</p>
+          <p class="muted">Clique sur la pièce le plus de fois possible en 15 secondes. 1 clic = 0,01 € (max 0,10 €).</p>
           <div class="game-play" id="clicker-play">
             <div class="clicker-coin" id="clicker-coin">🪙</div>
             <div class="clicker-count" id="clicker-count">0 clics</div>
@@ -285,172 +188,32 @@
           </div>
           <button class="game-btn" id="memory-start">▶️ Nouvelle partie</button>
         </div>
-
-        <!-- DÉ -->
-        <div class="game-card" id="game-dice">
-          <div class="game-icon">🎲</div>
-          <h3>Dé pair ou impair</h3>
-          <p class="muted">Mise, choisis pair ou impair. Si le dé tombe du bon côté, tu gagnes ta mise ; sinon tu la perds.</p>
-          <div class="stake-row" data-stake="dice">
-            <span class="muted">Mise</span>
-            <label class="stake-chip"><input type="radio" name="stake-dice" value="2"> 0,02 €</label>
-            <label class="stake-chip"><input type="radio" name="stake-dice" value="5" checked> 0,05 €</label>
-            <label class="stake-chip"><input type="radio" name="stake-dice" value="10"> 0,10 €</label>
-          </div>
-          <div class="dice-face" id="dice-face">🎲</div>
-          <div class="coinflip-buttons">
-            <button class="game-btn small" id="dice-even">Pair</button>
-            <button class="game-btn small" id="dice-odd">Impair</button>
-          </div>
-          <div class="coinflip-result" id="dice-result"></div>
-        </div>
-
-        <!-- CHIFOUMI -->
-        <div class="game-card" id="game-rps">
-          <div class="game-icon">✊</div>
-          <h3>Pierre · Feuille · Ciseaux</h3>
-          <p class="muted">Mise contre le site. Gagné = +mise, perdu = −mise, égalité = 0.</p>
-          <div class="stake-row">
-            <span class="muted">Mise</span>
-            <label class="stake-chip"><input type="radio" name="stake-rps" value="2"> 0,02 €</label>
-            <label class="stake-chip"><input type="radio" name="stake-rps" value="5" checked> 0,05 €</label>
-            <label class="stake-chip"><input type="radio" name="stake-rps" value="10"> 0,10 €</label>
-          </div>
-          <div class="rps-arena">
-            <span id="rps-you">❔</span>
-            <span class="muted">vs</span>
-            <span id="rps-cpu">❔</span>
-          </div>
-          <div class="coinflip-buttons">
-            <button class="game-btn small" id="rps-pierre">✊ Pierre</button>
-            <button class="game-btn small" id="rps-feuille">✋ Feuille</button>
-            <button class="game-btn small" id="rps-ciseaux">✌️ Ciseaux</button>
-          </div>
-          <div class="coinflip-result" id="rps-result"></div>
-        </div>
-
-        <!-- SLOTS -->
-        <div class="game-card" id="game-slots">
-          <div class="game-icon">🎰</div>
-          <h3>Machine à sous</h3>
-          <p class="muted">3 symboles identiques : +3× mise (7️⃣7️⃣7️⃣ = +5×). 2 identiques : +mise. Sinon tu perds la mise.</p>
-          <div class="stake-row">
-            <span class="muted">Mise</span>
-            <label class="stake-chip"><input type="radio" name="stake-slots" value="2"> 0,02 €</label>
-            <label class="stake-chip"><input type="radio" name="stake-slots" value="5" checked> 0,05 €</label>
-            <label class="stake-chip"><input type="radio" name="stake-slots" value="10"> 0,10 €</label>
-          </div>
-          <div class="slots-reels" id="slots-reels">
-            <span class="slot-reel" id="slot-0">🍒</span>
-            <span class="slot-reel" id="slot-1">🍋</span>
-            <span class="slot-reel" id="slot-2">🍇</span>
-          </div>
-          <button class="game-btn gold" id="slots-spin">🎰 Lancer</button>
-          <div class="coinflip-result" id="slots-result"></div>
-        </div>
-
-        <!-- ROUGE / NOIR -->
-        <div class="game-card" id="game-color">
-          <div class="game-icon">🎡</div>
-          <h3>Rouge ou Noir</h3>
-          <p class="muted">Mini-roulette. Mise sur une couleur : 50/50, tu gagnes ou tu perds ta mise.</p>
-          <div class="stake-row">
-            <span class="muted">Mise</span>
-            <label class="stake-chip"><input type="radio" name="stake-color" value="2"> 0,02 €</label>
-            <label class="stake-chip"><input type="radio" name="stake-color" value="5" checked> 0,05 €</label>
-            <label class="stake-chip"><input type="radio" name="stake-color" value="10"> 0,10 €</label>
-          </div>
-          <div class="roulette-ball" id="color-ball">⚪</div>
-          <div class="coinflip-buttons">
-            <button class="game-btn small" id="color-rouge" style="background:linear-gradient(135deg,#ef4444,#b91c1c)">Rouge</button>
-            <button class="game-btn small" id="color-noir" style="background:linear-gradient(135deg,#111827,#000)">Noir</button>
-          </div>
-          <div class="coinflip-result" id="color-result"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== FUN ===== -->
-    <section id="tab-fun" class="tab">
-      <h1 class="page-title">🎉 Fun — pubs = quelques centimes</h1>
-      <p class="muted">Regarde une pub, puis réclame <b>0,01 €</b> (parfois 0,02 €). 8 fois par jeu et par jour. Retrait dès <b>6,00 €</b>.</p>
-      <div class="fun-grid">
-        <div class="fun-card">
-          <div class="fun-emoji" id="fun-scratch-emoji">🎫</div>
-          <h3>Carte à gratter</h3>
-          <p class="muted">Gratte la carte après la pub. Presque toujours 0,01 €.</p>
-          <div class="scratch-box" id="scratch-box">❓</div>
-          <button class="game-btn gold" id="fun-scratch">🎬 Pub + gratter</button>
-          <div class="coinflip-result" id="fun-scratch-res"></div>
-        </div>
-        <div class="fun-card">
-          <div class="fun-emoji" id="fun-chest-emoji">📦</div>
-          <h3>Coffre mystère</h3>
-          <p class="muted">Ouvre le coffre. Petite surprise en centimes.</p>
-          <button class="game-btn gold" id="fun-chest">🎬 Pub + ouvrir</button>
-          <div class="coinflip-result" id="fun-chest-res"></div>
-        </div>
-        <div class="fun-card">
-          <div class="fun-emoji">🎈</div>
-          <h3>Bulles d'or</h3>
-          <p class="muted">Éclate les bulles après la pub pour la pièce.</p>
-          <div class="balloon-row" id="balloon-row">
-            <span class="balloon">🎈</span><span class="balloon">🎈</span><span class="balloon">🎈</span><span class="balloon">🎈</span><span class="balloon">🎈</span>
-          </div>
-          <button class="game-btn gold" id="fun-balloon">🎬 Pub + éclater</button>
-          <div class="coinflip-result" id="fun-balloon-res"></div>
-        </div>
-        <div class="fun-card">
-          <div class="fun-emoji">🤓</div>
-          <h3>Quiz blague</h3>
-          <p class="muted">1 question pour rire, puis 0,01 € (pub d'abord).</p>
-          <div class="quiz-q" id="fun-quiz-q">Clique pour une question.</div>
-          <div class="coinflip-buttons" id="fun-quiz-opts"></div>
-          <button class="game-btn gold" id="fun-quiz">🎬 Pub + quiz</button>
-          <div class="coinflip-result" id="fun-quiz-res"></div>
-        </div>
       </div>
     </section>
 
     <!-- ===== RETRAIT ===== -->
     <section id="tab-withdraw" class="tab">
       <h1 class="page-title">💸 Retrait</h1>
-      <p class="muted">Retire tes gains dès <b>6,00 €</b> : <b>virement, USDT, Lydia, Revolut, Payeer</b> (PayPal optionnel). Cartes cadeaux bientôt.</p>
-
-      <h2 class="page-title" style="font-size:20px;margin-top:8px">🎁 Cartes cadeaux</h2>
-      <p class="muted">Amazon, Google Play et Steam arrivent bientôt. <b>Pas encore disponibles</b> — en attendant, tu peux retirer dès 6,00 € (PayPal, virement, USDT).</p>
-      <div class="gift-grid" id="gift-grid">
-        <button type="button" class="gift-card gc-amazon soon" disabled data-gift="amazon-10"><span class="gc-brand">amazon</span><span class="gc-val">10 €</span><span class="gc-soon">Bientôt</span></button>
-        <button type="button" class="gift-card gc-amazon soon" disabled data-gift="amazon-15"><span class="gc-brand">amazon</span><span class="gc-val">15 €</span><span class="gc-soon">Bientôt</span></button>
-        <button type="button" class="gift-card gc-amazon soon" disabled data-gift="amazon-25"><span class="gc-brand">amazon</span><span class="gc-val">25 €</span><span class="gc-soon">Bientôt</span></button>
-        <button type="button" class="gift-card gc-google soon" disabled data-gift="google-10"><span class="gc-brand">Google Play</span><span class="gc-val">10 €</span><span class="gc-soon">Bientôt</span></button>
-        <button type="button" class="gift-card gc-google soon" disabled data-gift="google-15"><span class="gc-brand">Google Play</span><span class="gc-val">15 €</span><span class="gc-soon">Bientôt</span></button>
-        <button type="button" class="gift-card gc-steam soon" disabled data-gift="steam-10"><span class="gc-brand">STEAM</span><span class="gc-val">10 €</span><span class="gc-soon">Bientôt</span></button>
-        <button type="button" class="gift-card gc-steam soon" disabled data-gift="steam-15"><span class="gc-brand">STEAM</span><span class="gc-val">15 €</span><span class="gc-soon">Bientôt</span></button>
-      </div>
-
+      <p class="muted">Retire tes gains dès <b>2,00 €</b>.</p>
       <div class="two-col">
         <div class="card">
           <h2>Demander un retrait</h2>
           <div class="field">
             <label>Montant (€)</label>
-            <input type="number" id="wd-amount" min="6" step="0.01" placeholder="6.00">
-            <div class="sub small">Solde : <span id="wd-balance">0,00 €</span> · Minimum : 6,00 €</div>
+            <input type="number" id="wd-amount" min="2" step="0.01" placeholder="2.00">
+            <div class="sub small">Solde : <span id="wd-balance">0,00 €</span> · Minimum : 2,00 €</div>
           </div>
           <div class="field">
             <label>Méthode</label>
             <select id="wd-method">
-              <option value="virement">Virement bancaire (IBAN)</option>
-              <option value="crypto">Crypto (USDT TRC20)</option>
-              <option value="lydia">Lydia</option>
-              <option value="revolut">Revolut</option>
-              <option value="payeer">Payeer</option>
-              <option value="paypal">PayPal (si tu en as un)</option>
+              <option value="paypal">PayPal</option>
+              <option value="virement">Virement bancaire</option>
+              <option value="crypto">Crypto (USDT)</option>
             </select>
           </div>
           <div class="field">
-            <label id="wd-details-label">IBAN</label>
-            <input type="text" id="wd-details" placeholder="FR76 …">
+            <label id="wd-details-label">Email PayPal</label>
+            <input type="text" id="wd-details" placeholder="ton@email.com">
           </div>
           <button class="btn-primary big" id="wd-submit">Envoyer la demande</button>
         </div>
@@ -476,12 +239,6 @@
     <!-- ===== ADMIN ===== -->
     <section id="tab-admin" class="tab">
       <h1 class="page-title">⚙️ Administration</h1>
-      <div class="card" style="border-color:#f59e0b">
-        <h2>💰 Tes pubs (toi tu gagnes)</h2>
-        <p>Les visiteurs cliquent / regardent les pubs → <b>Adsterra te paie toi</b>.</p>
-        <p class="muted">❌ Ne clique pas tes propres pubs : Adsterra le détecte (trafic invalide) et peut <b>fermer le compte</b> + 0 €.</p>
-        <p><a href="https://publishers.adsterra.com" target="_blank" rel="noopener">Ouvrir Adsterra Statistics →</a></p>
-      </div>
       <div class="stat-grid" id="admin-stats">
         <div class="stat"><div class="stat-val" id="adm-users">—</div><div class="stat-label">Utilisateurs</div></div>
         <div class="stat"><div class="stat-val" id="adm-pending">—</div><div class="stat-label">Retraits en attente</div></div>
@@ -525,12 +282,15 @@
   </main>
 
   <footer class="site-footer">
-    <span>© 2026 Robinet €</span>
-    <span>
-      <a href="mentions-legales.html">Mentions légales</a> ·
-      <a href="confidentialite.html">Politique de confidentialité</a> ·
-      <a href="confidentialite.html">Contact</a>
-    </span>
+    <div class="ad-grid" id="ad-grid-footer"></div>
+    <div class="foot-row">
+      <span>© 2026 Robinet €</span>
+      <span>
+        <a href="mentions-legales.html">Mentions légales</a> ·
+        <a href="confidentialite.html">Politique de confidentialité</a> ·
+        <a href="confidentialite.html">Contact</a>
+      </span>
+    </div>
   </footer>
 </div>
 
@@ -623,27 +383,6 @@
     <p class="muted" id="cpa-note">Clique ci-dessous pour ouvrir l'offre chez notre partenaire, puis reviens valider.</p>
     <button class="btn-primary big" id="cpa-open" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;display:none">🔗 Ouvrir l'offre partenaire</button>
     <button class="btn-primary big" id="cpa-claim">✅ J'ai terminé l'action</button>
-  </div>
-</div>
-
-<div id="ad-gate-modal" class="modal hidden">
-  <div class="modal-box ad-gate-box">
-    <h2>🎬 Une pub avant de continuer</h2>
-    <p class="muted">Regarde la publicité jusqu’au bout. Un nouvel onglet peut s’ouvrir.</p>
-    <iframe id="ad-gate-frame" class="ad-gate-frame" src="about:blank" title="Publicité"></iframe>
-    <div class="ad-gate-timer" id="ad-gate-timer">15 s</div>
-    <button class="btn-primary big" id="ad-gate-continue" disabled>⏳ Regarde la pub…</button>
-  </div>
-</div>
-
-<div id="intro-modal" class="modal hidden">
-  <div class="modal-box intro-box">
-    <h2>💧 Démo Robinet €</h2>
-    <p class="muted">Courte vidéo de présentation <b>avec le son</b>. Aucun gain pour cette démo.</p>
-    <video id="intro-video" class="intro-video" src="intro.mp4" playsinline controls></video>
-    <button class="btn-primary big" id="intro-play">▶ Lancer la démo (son activé)</button>
-    <button class="btn-primary big hidden" id="intro-claim">Continuer</button>
-    <button class="btn-ghost" id="intro-skip" style="margin-top:8px">Passer</button>
   </div>
 </div>
 
