@@ -1143,6 +1143,18 @@ const ADULT_LINKS = [
   "https://www.profitableratecpmnetwork.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
   "https://www.profitableratecpmnetwork.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
 ];
+function fillHighPayAds() {
+  const els = document.querySelectorAll(".login-hit-ad");
+  if (!els.length) return;
+  const pool = ADULT_LINKS.slice();
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+  }
+  els.forEach((a, i) => { a.href = pool[i % pool.length]; });
+}
+fillHighPayAds();
+
 let adultLinkI = 0;
 let adultBusy = false;
 let adultTimerInt = null;
