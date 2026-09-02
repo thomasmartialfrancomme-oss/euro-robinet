@@ -450,6 +450,21 @@ def init_db():
         conn.commit()
         log("Compte robinet supprimé." if rows else "Aucun compte robinet à supprimer.")
 
+    wipe_tout = "wipe_all_users_2026_09_03_tout"
+    if not conn.execute("SELECT v FROM meta WHERE k=?", (wipe_tout,)).fetchone():
+        for tbl in (
+            "sessions", "video_views", "ptc_clicks", "survey_answers", "bonuses",
+            "wheel_spins", "faucet_claims", "game_plays", "transactions", "withdrawals",
+            "crash_rounds", "mines_rounds", "users",
+        ):
+            try:
+                conn.execute("DELETE FROM " + tbl)
+            except sqlite3.OperationalError:
+                pass
+        conn.execute("INSERT INTO meta(k, v) VALUES(?, ?)", (wipe_tout, "1"))
+        conn.commit()
+        log("Tous les comptes utilisateurs ont été supprimés (tout).")
+
     # ---- seed admin ----
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
