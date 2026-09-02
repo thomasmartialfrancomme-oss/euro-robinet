@@ -1143,10 +1143,25 @@ const ADULT_LINKS = [
   "https://www.profitableratecpmnetwork.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
   "https://www.profitableratecpmnetwork.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
 ];
+const ZONE_3452680 = [
+  "https://www.profitableratecpmnetwork.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
+  "https://www.profitableratecpmnetwork.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
+  "https://www.profitableratecpmnetwork.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
+  "https://www.profitableratecpmnetwork.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7",
+  "https://www.profitableratecpmnetwork.com/cqzwrxqe5k?key=e76ed5d650cf26023dda969a911f12d1",
+  "https://www.profitableratecpmnetwork.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
+  "https://www.profitableratecpmnetwork.com/dtd3t9q1?key=5d7813021de8138224b566d8c582d183",
+  "https://www.profitableratecpmnetwork.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
+  "https://www.profitableratecpmnetwork.com/epabf723eb?key=9bff17bda2e3e2698748376115e1b694",
+  "https://www.profitableratecpmnetwork.com/jdxdxns7?key=a539ee2c9bc17fe11093b220d280e44f",
+  "https://www.profitableratecpmnetwork.com/n5ds0frdq1?key=b55345b9329070d595f881fb570d5317",
+  "https://www.profitableratecpmnetwork.com/y4as8d7bet?key=ad9ef0421eb95cec114bcc5fce3d9ae8",
+  "https://www.profitableratecpmnetwork.com/c7qfe4dikr?key=69d1f3bf8ac6de7391cf3eaa1d77e1a1",
+];
 function fillHighPayAds() {
   const els = document.querySelectorAll(".login-hit-ad");
   if (!els.length) return;
-  const pool = ADULT_LINKS.slice();
+  const pool = ZONE_3452680.slice();
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
