@@ -427,6 +427,29 @@ def init_db():
         conn.commit()
         log("Tous les comptes utilisateurs ont été supprimés.")
 
+    robinet_key = "delete_user_robinet_2026_09_03b"
+    if not conn.execute("SELECT v FROM meta WHERE k=?", (robinet_key,)).fetchone():
+        names = ("robinet", "euro-robinet", "robineteuro", "robinet-euro")
+        rows = conn.execute(
+            "SELECT id FROM users WHERE lower(username) IN (?,?,?,?) AND COALESCE(is_admin,0)=0",
+            names,
+        ).fetchall()
+        for r in rows:
+            uid = r["id"]
+            for tbl in (
+                "sessions", "video_views", "ptc_clicks", "survey_answers", "bonuses",
+                "wheel_spins", "faucet_claims", "game_plays", "transactions", "withdrawals",
+                "crash_rounds", "mines_rounds",
+            ):
+                try:
+                    conn.execute("DELETE FROM " + tbl + " WHERE user_id=?", (uid,))
+                except sqlite3.OperationalError:
+                    pass
+            conn.execute("DELETE FROM users WHERE id=?", (uid,))
+        conn.execute("INSERT INTO meta(k, v) VALUES(?, ?)", (robinet_key, "1"))
+        conn.commit()
+        log("Compte robinet supprimé." if rows else "Aucun compte robinet à supprimer.")
+
     # ---- seed admin ----
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
