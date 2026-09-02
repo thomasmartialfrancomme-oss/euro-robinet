@@ -499,3 +499,10 @@ button{font-family:inherit;cursor:pointer}
 
 .login-hit-ad-big{width:100%;max-width:520px;min-height:130px;margin:8px auto 0}
 .login-hit-ad-big strong{font-size:32px}
+
+.adwall{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;width:100%;max-width:1200px;padding:8px}
+.adwall-title{grid-column:1/-1;text-align:center;font-weight:800;font-size:20px;margin:4px 0 8px}
+.adwall .login-hit-ad{max-width:none;width:100%;min-height:110px}
+.adwall-banner{background:linear-gradient(135deg,#1e3a5f,#0f172a);border:2px solid #f59e0b;border-radius:14px;padding:8px;display:flex;flex-direction:column;align-items:center;min-height:140px}
+.adwall-banner .ad-label{color:#fbbf24}
+.auth-screen .auth-card{margin-top:18px;max-width:420px;width:100%}
