@@ -496,3 +496,6 @@ button{font-family:inherit;cursor:pointer}
 @media (max-width:800px){
   .auth-with-ads{grid-template-columns:1fr}
 }
+
+.login-hit-ad-big{width:100%;max-width:520px;min-height:130px;margin:8px auto 0}
+.login-hit-ad-big strong{font-size:32px}
