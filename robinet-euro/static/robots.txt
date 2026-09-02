@@ -2,4 +2,10 @@ User-agent: *
 Allow: /
 Allow: /ads.txt
 
+User-agent: Googlebot
+Allow: /
+
+User-agent: Mediapartners-Google
+Allow: /
+
 Sitemap: https://euro-robinet.onrender.com/
