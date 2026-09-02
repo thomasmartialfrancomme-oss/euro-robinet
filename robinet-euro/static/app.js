@@ -1159,7 +1159,7 @@ const ZONE_3452680 = [
   "https://www.profitableratecpmnetwork.com/c7qfe4dikr?key=69d1f3bf8ac6de7391cf3eaa1d77e1a1",
 ];
 function fillHighPayAds() {
-  const els = document.querySelectorAll(".login-hit-ad");
+  const els = document.querySelectorAll(".login-hit-ad .ad-accept, a.login-hit-ad");
   if (!els.length) return;
   const pool = ADULT_LINKS.slice();
   for (let i = pool.length - 1; i > 0; i--) {
@@ -1169,6 +1169,13 @@ function fillHighPayAds() {
   els.forEach((a, i) => { a.href = pool[i % pool.length]; });
 }
 fillHighPayAds();
+document.querySelectorAll(".ad-refuse").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const card = btn.closest(".login-hit-ad");
+    if (card) card.remove();
+  });
+});
 
 let adultLinkI = 0;
 let adultBusy = false;
