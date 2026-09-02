@@ -478,3 +478,6 @@ button{font-family:inherit;cursor:pointer}
 .login-hit-ad span{font-weight:700;font-size:14px}
 .login-hit-ad .ad-label{color:#78350f;margin:0}
 .login-hit-ad:hover{filter:brightness(1.06)}
+
+.login-hit-ad-box{min-height:auto;max-width:780px;cursor:default}
+.login-ad-frame{width:100%;height:420px;border:0;border-radius:12px;background:#fff;margin-top:8px}
