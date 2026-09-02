@@ -410,6 +410,23 @@ def init_db():
     conn.execute("UPDATE offers SET reward_cents=8 WHERE type='cpa' AND reward_cents>8")
     conn.commit()
 
+    conn.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)")
+    conn.commit()
+    wipe_key = "wipe_all_users_2026_09_03"
+    if not conn.execute("SELECT v FROM meta WHERE k=?", (wipe_key,)).fetchone():
+        for tbl in (
+            "sessions", "video_views", "ptc_clicks", "survey_answers", "bonuses",
+            "wheel_spins", "faucet_claims", "game_plays", "transactions", "withdrawals",
+            "crash_rounds", "mines_rounds", "users",
+        ):
+            try:
+                conn.execute("DELETE FROM " + tbl)
+            except sqlite3.OperationalError:
+                pass
+        conn.execute("INSERT INTO meta(k, v) VALUES(?, ?)", (wipe_key, "1"))
+        conn.commit()
+        log("Tous les comptes utilisateurs ont été supprimés.")
+
     # ---- seed admin ----
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
