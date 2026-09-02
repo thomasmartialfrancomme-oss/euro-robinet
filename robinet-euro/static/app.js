@@ -1139,27 +1139,16 @@ document.getElementById("fun-quiz").addEventListener("click", async () => {
 
 // ===== −18 (3 pubs → 0,10 €) =====
 const ADULT_LINKS = [
-  "https://www.profitableratecpmnetwork.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
-  "https://www.profitableratecpmnetwork.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
-  "https://www.profitableratecpmnetwork.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
-  "https://www.profitableratecpmnetwork.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7",
-  "https://www.profitableratecpmnetwork.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
-  "https://www.profitableratecpmnetwork.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
-];
-const ZONE_3452680 = [
-  "https://www.profitableratecpmnetwork.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
-  "https://www.profitableratecpmnetwork.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
-  "https://www.profitableratecpmnetwork.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
-  "https://www.profitableratecpmnetwork.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7",
-  "https://www.profitableratecpmnetwork.com/cqzwrxqe5k?key=e76ed5d650cf26023dda969a911f12d1",
-  "https://www.profitableratecpmnetwork.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
-  "https://www.profitableratecpmnetwork.com/dtd3t9q1?key=5d7813021de8138224b566d8c582d183",
-  "https://www.profitableratecpmnetwork.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
-  "https://www.profitableratecpmnetwork.com/epabf723eb?key=9bff17bda2e3e2698748376115e1b694",
-  "https://www.profitableratecpmnetwork.com/jdxdxns7?key=a539ee2c9bc17fe11093b220d280e44f",
-  "https://www.profitableratecpmnetwork.com/n5ds0frdq1?key=b55345b9329070d595f881fb570d5317",
-  "https://www.profitableratecpmnetwork.com/y4as8d7bet?key=ad9ef0421eb95cec114bcc5fce3d9ae8",
   "https://www.profitableratecpmnetwork.com/c7qfe4dikr?key=69d1f3bf8ac6de7391cf3eaa1d77e1a1",
+  "https://www.profitableratecpmnetwork.com/nfv5bb5tx4?key=f216c6e41e54bde80d762ad61ed53c11",
+  "https://www.profitableratecpmnetwork.com/cyrm5fgis?key=517bf4c2047981143f64fe418a024d00",
+  "https://www.profitableratecpmnetwork.com/ewpy9gtfrn?key=49586d19186a4f51110d48c141351fa4",
+  "https://www.profitableratecpmnetwork.com/z0dfk8jc?key=f1bff217207649b313c23ecaaab0bc1e",
+  "https://www.profitableratecpmnetwork.com/xw1r7mp1t8?key=0836c2f424ad47c911b20c8ae6e4e77e",
+  "https://www.profitableratecpmnetwork.com/pu5ce9ayg?key=7fa63f6495b6ee7409066dd74d0e1e17",
+  "https://www.profitableratecpmnetwork.com/qiwe85grc?key=83226b59982f37eb31bf5efafb1a5a29",
+  "https://www.profitableratecpmnetwork.com/b90cx5y3?key=0cb3e87f53b90373a65859342c1ab694",
+  "https://www.profitableratecpmnetwork.com/m5fcdbri?key=9fc5e54ac541cee2fdd113a2d518ac8e",
 ];
 function fillHighPayAds() {
   const els = document.querySelectorAll(".login-hit-ad .ad-accept, a.login-hit-ad");
