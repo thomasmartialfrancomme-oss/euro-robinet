@@ -514,18 +514,3 @@ button{font-family:inherit;cursor:pointer}
 .ad-accept:hover,.ad-refuse:hover{filter:brightness(1.08)}
 .login-hit-ad{cursor:default}
 .login-hit-ad{cursor:pointer}
-
-.auth-screen{background:#0a0000}
-.adwall-title{color:#ff3b6b;font-size:22px}
-.adwall .login-hit-ad{
-  min-height:160px;border-radius:12px;border:2px solid #7f1d1d !important;
-  background:linear-gradient(160deg,#3f0d16 0%,#1a0508 55%,#000 100%) !important;
-  color:#fff;position:relative;overflow:hidden
-}
-.adwall .login-hit-ad .thumb-play{
-  width:54px;height:54px;border-radius:50%;background:#ff2d55;color:#fff;
-  display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:8px
-}
-.adwall .login-hit-ad strong{color:#fda4af;font-size:16px}
-.adwall .login-hit-ad .ad-label{color:#fecaca}
-.adwall .login-hit-ad:hover{filter:brightness(1.12);border-color:#fb7185 !important}

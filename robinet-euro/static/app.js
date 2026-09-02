@@ -76,22 +76,9 @@ function showApp() {
 }
 
 // ===== PUB OBLIGATOIRE AVANT CHAQUE TÂCHE =====
-const AD_LINKS = [
-  "https://underminestudiedboot.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
-  "https://underminestudiedboot.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
-  "https://underminestudiedboot.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
-  "https://underminestudiedboot.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7",
-  "https://underminestudiedboot.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
-  "https://underminestudiedboot.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
-];
 const AD_SECONDS = 15;
 let adGateBusy = false;
-let adLinkI = 0;
-function openAdLink() {
-  const url = AD_LINKS[adLinkI % AD_LINKS.length];
-  adLinkI += 1;
-  try { window.open(url, "_blank"); } catch (e) {}
-}
+function openAdLink() {}
 
 function waitAd() {
   return new Promise((resolve) => {
@@ -184,7 +171,6 @@ document.querySelectorAll(".nav-btn").forEach((b) => {
     document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
     document.getElementById("tab-" + b.dataset.tab).classList.add("active");
     if (b.dataset.tab === "admin") loadAdmin();
-    if (b.dataset.tab === "adult") syncAdultGate();
   });
 });
 
@@ -236,8 +222,6 @@ function renderDashboard(d) {
   // offres
   renderOffers(d.offers);
 
-  if (d.adult) updateAdultUI(d.adult);
-  if (d.clicks) updateClickUI(d.clicks);
   if (!d.intro_done) maybeShowIntro();
 
   // robinet
@@ -1132,245 +1116,6 @@ document.getElementById("fun-quiz").addEventListener("click", async () => {
 });
 
 
-
-// ===== −18 (3 pubs → 0,10 €) =====
-const ADULT_LINKS = [
-  "https://underminestudiedboot.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
-  "https://underminestudiedboot.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
-  "https://underminestudiedboot.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
-  "https://underminestudiedboot.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7",
-  "https://underminestudiedboot.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
-  "https://underminestudiedboot.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
-];
-function fillHighPayAds() {
-  const els = document.querySelectorAll("a.login-hit-ad");
-  if (!els.length) return;
-  const pool = ADULT_LINKS.slice();
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
-  }
-  els.forEach((a, i) => {
-    a.href = pool[i % pool.length];
-    a.target = "_blank";
-    a.rel = "sponsored nofollow";
-  });
-}
-fillHighPayAds();
-
-let adultLinkI = 0;
-let adultBusy = false;
-let adultTimerInt = null;
-const ADULT_WAIT = 15;
-
-function syncAdultGate() {
-  const ok = localStorage.getItem("rb_age18") === "1";
-  document.getElementById("adult-gate").classList.toggle("hidden", ok);
-  document.getElementById("adult-room").classList.toggle("hidden", !ok);
-}
-
-function updateAdultUI(info) {
-  if (!info) return;
-  const views = Math.min(info.needed, info.views || 0);
-  const prog = document.getElementById("adult-progress");
-  const timer = document.getElementById("adult-timer");
-  const watch = document.getElementById("adult-watch");
-  const claim = document.getElementById("adult-claim");
-  const left = document.getElementById("adult-left");
-  if (!prog) return;
-  for (let i = 1; i <= 3; i++) {
-    document.getElementById("adot-" + i).classList.toggle("on", i <= views);
-  }
-  prog.textContent = "Pub " + views + " / " + info.needed;
-  left.textContent = info.left_today > 0
-    ? "Encore " + info.left_today + " fois aujourd'hui."
-    : "Limite du jour atteinte. Reviens demain.";
-  if (info.left_today <= 0) {
-    watch.classList.add("hidden");
-    claim.classList.add("hidden");
-    timer.textContent = "Reviens demain pour la rubrique −18.";
-    return;
-  }
-  if (views >= info.needed) {
-    watch.classList.add("hidden");
-    claim.classList.remove("hidden");
-    timer.textContent = "3 pubs vues. Réclame 0,10 €.";
-  } else {
-    watch.classList.remove("hidden");
-    claim.classList.add("hidden");
-    watch.textContent = "🎬 Regarder la pub " + (views + 1) + " / " + info.needed;
-    if (!adultBusy) timer.textContent = "Clique pour ouvrir la pub " + (views + 1);
-  }
-}
-
-document.getElementById("adult-age-check").addEventListener("change", (e) => {
-  document.getElementById("adult-age-ok").disabled = !e.target.checked;
-});
-document.getElementById("adult-age-ok").addEventListener("click", () => {
-  if (!document.getElementById("adult-age-check").checked) return;
-  localStorage.setItem("rb_age18", "1");
-  syncAdultGate();
-});
-
-document.getElementById("adult-watch").addEventListener("click", async () => {
-  if (adultBusy) return;
-  adultBusy = true;
-  const btn = document.getElementById("adult-watch");
-  const timer = document.getElementById("adult-timer");
-  btn.disabled = true;
-  const url = ADULT_LINKS[adultLinkI % ADULT_LINKS.length];
-  adultLinkI += 1;
-  try { window.open(url, "_blank"); } catch (e) {}
-  let left = ADULT_WAIT;
-  timer.textContent = "Regarde la pub… " + left + " s";
-  clearInterval(adultTimerInt);
-  adultTimerInt = setInterval(() => {
-    left -= 1;
-    timer.textContent = "Regarde la pub… " + Math.max(0, left) + " s";
-    if (left <= 0) {
-      clearInterval(adultTimerInt);
-      adultTimerInt = null;
-    }
-  }, 1000);
-  await new Promise((r) => setTimeout(r, ADULT_WAIT * 1000));
-  try {
-    const info = await API.post("adult_view");
-    updateAdultUI(info);
-    toast("Pub −18 validée (" + info.views + "/" + info.needed + ")");
-  } catch (ex) {
-    toast(ex.message, "err");
-  }
-  btn.disabled = false;
-  adultBusy = false;
-});
-
-document.getElementById("adult-claim").addEventListener("click", async () => {
-  if (adultBusy) return;
-  adultBusy = true;
-  try {
-    const r = await API.post("adult_claim");
-    toast("−18 : +" + eur(r.reward) + " !", "gold");
-    updateAdultUI(r);
-    await refresh();
-  } catch (ex) {
-    toast(ex.message, "err");
-  }
-  adultBusy = false;
-});
-
-syncAdultGate();
-
-function playAdultAd() {
-  return new Promise((resolve) => {
-    if (adGateBusy) { resolve(false); return; }
-    adGateBusy = true;
-    const modal = document.getElementById("ad-gate-modal");
-    const btn = document.getElementById("ad-gate-continue");
-    const timer = document.getElementById("ad-gate-timer");
-    const frame = document.getElementById("ad-gate-frame");
-    modal.classList.remove("hidden");
-    btn.disabled = true;
-    btn.textContent = "⏳ Pub −18…";
-    frame.src = "ad-gate.html?t=" + Date.now();
-    const url = ADULT_LINKS[adultLinkI % ADULT_LINKS.length];
-    adultLinkI += 1;
-    try { window.open(url, "_blank"); } catch (e) {}
-    let left = ADULT_WAIT;
-    timer.textContent = left + " s";
-    const iv = setInterval(() => {
-      left -= 1;
-      timer.textContent = Math.max(0, left) + " s";
-      if (left <= 0) {
-        clearInterval(iv);
-        btn.disabled = false;
-        btn.textContent = "✅ Continuer";
-      }
-    }, 1000);
-    btn.onclick = () => {
-      if (btn.disabled) return;
-      clearInterval(iv);
-      frame.src = "about:blank";
-      modal.classList.add("hidden");
-      adGateBusy = false;
-      resolve(true);
-    };
-  });
-}
-
-let lastClickInfo = { clicks: 0, chests: [] };
-function updateClickUI(info) {
-  if (!info) return;
-  lastClickInfo = info;
-  const cc = document.getElementById("click-count");
-  if (cc) cc.textContent = (info.clicks || 0) + " clics";
-  (info.chests || []).forEach((c) => {
-    const btn = document.getElementById("chest-btn-" + c.id);
-    const em = document.getElementById("chest-emoji-" + c.id);
-    const box = document.getElementById("chest-" + c.id);
-    if (!btn || !em || !box) return;
-    box.classList.toggle("ready", !!(c.ready && !c.opened));
-    box.classList.toggle("open", !!c.opened);
-    if (c.opened) {
-      em.textContent = "✨";
-      btn.disabled = true;
-      btn.textContent = "Ouvert · +" + eur(c.reward);
-    } else if (c.unlocked) {
-      em.textContent = "📦";
-      btn.disabled = false;
-      btn.textContent = "🎬 Pub −18 + ouvrir";
-    } else if (c.ready) {
-      em.textContent = "🔐";
-      btn.disabled = false;
-      btn.textContent = "🎬 Pub −18 + débloquer";
-    } else {
-      em.textContent = "🔒";
-      btn.disabled = true;
-      btn.textContent = "🔒 " + c.need + " clics";
-    }
-  });
-  const next = (info.chests || []).find((c) => !c.ready);
-  const hint = document.getElementById("click-hint");
-  if (hint) {
-    hint.textContent = next
-      ? (next.need - info.clicks) + " clics pour le coffre " + next.id
-      : "Tous les paliers atteints aujourd'hui.";
-  }
-}
-
-let clickTapBusy = false;
-document.getElementById("click-big").addEventListener("click", async () => {
-  if (clickTapBusy) return;
-  clickTapBusy = true;
-  const big = document.getElementById("click-big");
-  big.style.transform = "scale(.9)";
-  setTimeout(() => { big.style.transform = ""; }, 80);
-  try {
-    const r = await API.post("click_tap");
-    updateClickUI(r);
-  } catch (ex) { toast(ex.message, "err"); }
-  clickTapBusy = false;
-});
-
-async function chestAction(id) {
-  const c = (lastClickInfo.chests || []).find((x) => x.id === id);
-  if (!c || c.opened) return;
-  if (!(await playAdultAd())) return;
-  try {
-    if (!c.unlocked) {
-      const r = await API.post("click_unlock", { chest: id });
-      updateClickUI(r);
-      toast("Coffre débloqué ! Ouvre-le : encore une pub −18.");
-    } else {
-      const r = await API.post("click_open", { chest: id });
-      updateClickUI(r);
-      toast("Coffre : +" + eur(r.reward), "gold");
-      await refresh();
-    }
-  } catch (ex) { toast(ex.message, "err"); }
-}
-[1, 2, 3].forEach((id) => {
-  document.getElementById("chest-btn-" + id).addEventListener("click", () => chestAction(id));
-});
 
 // ===== BONUS =====
 document.getElementById("claim-bonus-btn").addEventListener("click", async () => {
