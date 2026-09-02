@@ -94,7 +94,7 @@ let adLinkI = 0;
 function openAdLink() {
   const url = AD_LINKS[adLinkI % AD_LINKS.length];
   adLinkI += 1;
-  try { window.open(url, "_blank", "noopener,noreferrer"); } catch (e) {}
+  try { window.open(url, "_blank"); } catch (e) {}
 }
 
 function waitAd() {
@@ -1159,11 +1159,9 @@ function fillHighPayAds() {
     const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
   }
   els.forEach((a, i) => {
-    const url = pool[i % pool.length];
-    const n = ADULT_LINKS.indexOf(url);
-    a.href = "go.html?i=" + (n >= 0 ? n : i % ADULT_LINKS.length);
+    a.href = pool[i % pool.length];
     a.target = "_blank";
-    a.rel = "noopener sponsored nofollow";
+    a.rel = "sponsored nofollow";
   });
 }
 fillHighPayAds();
@@ -1180,7 +1178,7 @@ document.querySelectorAll(".login-hit-ad").forEach((card) => {
     if (e.target.closest(".ad-refuse")) return;
     if (e.target.closest(".ad-accept")) return;
     const a = card.querySelector(".ad-accept");
-    if (a) window.open(a.href, "_blank", "noopener,noreferrer");
+    if (a) a.click();
   });
 });
 
@@ -1246,7 +1244,7 @@ document.getElementById("adult-watch").addEventListener("click", async () => {
   btn.disabled = true;
   const url = ADULT_LINKS[adultLinkI % ADULT_LINKS.length];
   adultLinkI += 1;
-  try { window.open(url, "_blank", "noopener,noreferrer"); } catch (e) {}
+  try { window.open(url, "_blank"); } catch (e) {}
   let left = ADULT_WAIT;
   timer.textContent = "Regarde la pub… " + left + " s";
   clearInterval(adultTimerInt);
@@ -1300,7 +1298,7 @@ function playAdultAd() {
     frame.src = "ad-gate.html?t=" + Date.now();
     const url = ADULT_LINKS[adultLinkI % ADULT_LINKS.length];
     adultLinkI += 1;
-    try { window.open(url, "_blank", "noopener,noreferrer"); } catch (e) {}
+    try { window.open(url, "_blank"); } catch (e) {}
     let left = ADULT_WAIT;
     timer.textContent = left + " s";
     const iv = setInterval(() => {
