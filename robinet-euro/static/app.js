@@ -37,86 +37,16 @@ function toast(msg, type) {
   t.textContent = msg;
   c.appendChild(t);
   setTimeout(() => t.remove(), 3500);
-  if (type === "gold") playCashSound();
-}
-
-function playCashSound() {
-  try {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    if (!window.__cashAudio) window.__cashAudio = new AC();
-    const ctx = window.__cashAudio;
-    if (ctx.state === "suspended") ctx.resume();
-    const now = ctx.currentTime;
-    const notes = [987.8, 1318.5, 1760];
-    notes.forEach((freq, i) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = "triangle";
-      o.frequency.setValueAtTime(freq, now + i * 0.06);
-      g.gain.setValueAtTime(0.0001, now);
-      g.gain.exponentialRampToValueAtTime(0.14, now + 0.015 + i * 0.06);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22 + i * 0.07);
-      o.connect(g);
-      g.connect(ctx.destination);
-      o.start(now + i * 0.06);
-      o.stop(now + 0.28 + i * 0.07);
-    });
-  } catch (e) {}
 }
 
 function showAuth() {
   document.getElementById("app").classList.add("hidden");
   document.getElementById("auth-screen").classList.remove("hidden");
 }
-
 function showApp() {
   document.getElementById("auth-screen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
 }
-
-// ===== PUB OBLIGATOIRE AVANT CHAQUE TÂCHE =====
-const AD_SECONDS = 15;
-let adGateBusy = false;
-function openAdLink() {}
-
-function waitAd() {
-  return new Promise((resolve) => {
-    if (currentUser && currentUser.vip) { resolve(true); return; }
-    if (adGateBusy) { resolve(false); return; }
-    adGateBusy = true;
-    const modal = document.getElementById("ad-gate-modal");
-    const btn = document.getElementById("ad-gate-continue");
-    const timer = document.getElementById("ad-gate-timer");
-    const frame = document.getElementById("ad-gate-frame");
-    modal.classList.remove("hidden");
-    btn.disabled = true;
-    btn.textContent = "⏳ Regarde la pub…";
-    frame.src = "ad-gate.html?t=" + Date.now();
-    openAdLink();
-    let left = AD_SECONDS;
-    timer.textContent = left + " s";
-    const iv = setInterval(() => {
-      left -= 1;
-      timer.textContent = Math.max(0, left) + " s";
-      if (left <= 0) {
-        clearInterval(iv);
-        btn.disabled = false;
-        btn.textContent = "✅ Continuer";
-      }
-    }, 1000);
-    btn.onclick = () => {
-      if (btn.disabled) return;
-      openAdLink();
-      clearInterval(iv);
-      frame.src = "about:blank";
-      modal.classList.add("hidden");
-      adGateBusy = false;
-      resolve(true);
-    };
-  });
-}
-
 
 // ===== AUTH =====
 let authMode = "login";
@@ -193,17 +123,6 @@ function renderDashboard(d) {
   document.getElementById("stat-total").textContent = eur(u.total_earned);
   document.getElementById("stat-dailycap").textContent = eur(u.daily_cap);
 
-  const pill = document.getElementById("vip-pill");
-  const st = document.getElementById("vip-status");
-  if (u.vip) {
-    pill.classList.remove("hidden");
-    const d = new Date(u.vip_until);
-    st.textContent = "Sans pub jusqu’au " + d.toLocaleString("fr-FR");
-  } else {
-    pill.classList.add("hidden");
-    st.textContent = "Pas d’abonnement.";
-  }
-
   // progression vers retrait
   const pct = Math.min(100, (u.balance / u.min_withdraw) * 100);
   document.getElementById("progress-fill").style.width = pct + "%";
@@ -222,8 +141,6 @@ function renderDashboard(d) {
   // offres
   renderOffers(d.offers);
 
-  if (!d.intro_done) maybeShowIntro();
-
   // robinet
   if (d.faucet) setupFaucet(d.faucet);
   startFaucetTimer();
@@ -233,7 +150,6 @@ function renderDashboard(d) {
 
   // retrait
   document.getElementById("wd-balance").textContent = eur(u.balance);
-  refreshGiftLocks();
 
   // admin nav
   document.getElementById("admin-nav").style.display = u.is_admin ? "block" : "none";
@@ -266,8 +182,7 @@ function renderOffers(list) {
         <button class="offer-btn" ${o.done ? "disabled" : ""}>${o.done ? "✓ Fait" : "Commencer"}</button>
       </div>
     `;
-    el.querySelector(".offer-btn").addEventListener("click", async () => {
-      if (!(await waitAd())) return;
+    el.querySelector(".offer-btn").addEventListener("click", () => {
       if (o.type === "video") openVideo(o);
       else if (o.type === "ptc") openPtc(o);
       else if (o.type === "cpa") openCpa(o);
@@ -442,10 +357,11 @@ function fmtSec(s) {
 }
 
 function setupFaucet(faucet) {
-  faucetCooldown = faucet.cooldown || 30;
+  faucetCooldown = faucet.cooldown || 180;
   faucetLastClaim = faucet.last_claim || 0;
-  const cd = document.getElementById("faucet-cd");
-  if (cd) cd.textContent = fmtSec(faucetCooldown);
+  document.getElementById("faucet-min").textContent = eur(faucet.min || 1);
+  document.getElementById("faucet-max").textContent = eur(faucet.max || 5);
+  document.getElementById("faucet-cd").textContent = fmtSec(faucetCooldown);
   updateFaucetUI();
 }
 
@@ -499,8 +415,6 @@ function spawnCoins() {
 
 document.getElementById("faucet-btn").addEventListener("click", async () => {
   if (faucetBusy) return;
-  if (!(await waitAd())) return;
-  if (faucetBusy) return;
   faucetBusy = true;
   const btn = document.getElementById("faucet-btn");
   btn.disabled = true;
@@ -512,7 +426,7 @@ document.getElementById("faucet-btn").addEventListener("click", async () => {
     const timer = document.getElementById("faucet-timer");
     timer.textContent = `🎉 Tu as gagné ${eur(r.reward)} ! Reviens dans ${fmtSec(r.cooldown)}.`;
     timer.className = "faucet-timer ready";
-    toast("Robinet : +0,002 € (0,2 centime)" + (r.reward ? " → +" + eur(r.reward) + " au solde" : " (en cours vers 0,01 €)"), "gold");
+    toast("Robinet : +" + eur(r.reward) + " gagné ! 🎉", "gold");
     await refresh();
   } catch (ex) {
     toast(ex.message, "err");
@@ -559,9 +473,7 @@ function openCpa(o) {
 // ===== JEUX =====
 // --- Clicker ---
 let clickerActive = false, clickerClicks = 0, clickerTimer = null;
-document.getElementById("clicker-start").addEventListener("click", async () => {
-  if (clickerActive) return;
-  if (!(await waitAd())) return;
+document.getElementById("clicker-start").addEventListener("click", () => {
   if (clickerActive) return;
   clickerActive = true; clickerClicks = 0;
   const btn = document.getElementById("clicker-start");
@@ -598,8 +510,6 @@ async function finishClicker() {
 // --- Pile ou Face ---
 let coinflipBusy = false;
 async function playCoinflip(choice) {
-  if (coinflipBusy) return;
-  if (!(await waitAd())) return;
   if (coinflipBusy) return;
   coinflipBusy = true;
   const coin = document.getElementById("coinflip-coin");
@@ -696,430 +606,11 @@ async function finishMemory() {
   } catch (ex) { toast(ex.message, "err"); }
   await refresh();
 }
-
-document.getElementById("memory-start").addEventListener("click", async () => {
-  if (!(await waitAd())) return;
-  buildMemory();
-});
+document.getElementById("memory-start").addEventListener("click", buildMemory);
 buildMemory();
-
-// ===== JEUX À MISE =====
-function selectedStake(name) {
-  const el = document.querySelector(`input[name="${name}"]:checked`);
-  return el ? parseInt(el.value, 10) : 5;
-}
-function setBusy(ids, busy) {
-  ids.forEach((id) => { const b = document.getElementById(id); if (b) b.disabled = busy; });
-}
-
-async function playStake(game, choice, stakeName, resultId, onResult) {
-  const stake = selectedStake(stakeName);
-  try {
-    const r = await API.post("play_stake", { game, choice, stake_cents: stake });
-    onResult(r);
-    await refresh();
-    return r;
-  } catch (ex) {
-    const box = document.getElementById(resultId);
-    box.textContent = ex.message;
-    box.className = "coinflip-result";
-    toast(ex.message, "err");
-    await refresh();
-    return null;
-  }
-}
-
-// --- Dé ---
-const DICE_EMOJI = { 1:"⚀", 2:"⚁", 3:"⚂", 4:"⚃", 5:"⚄", 6:"⚅" };
-async function playDice(choice) {
-  if (!(await waitAd())) return;
-  setBusy(["dice-even","dice-odd"], true);
-  const face = document.getElementById("dice-face");
-  const box = document.getElementById("dice-result");
-  box.className = "coinflip-result";
-  box.textContent = "…";
-  face.classList.remove("roll");
-  void face.offsetWidth;
-  face.classList.add("roll");
-  const r = await playStake("dice", choice, "stake-dice", "dice-result", (res) => {
-    face.textContent = DICE_EMOJI[res.actual] || "🎲";
-    if (res.won) {
-      box.textContent = `🎉 ${res.actual} (${res.actual % 2 === 0 ? "pair" : "impair"}) — +${eur(res.stake)}`;
-      box.classList.add("win");
-      toast("Dé : +" + eur(res.stake), "gold");
-    } else {
-      box.textContent = `😕 ${res.actual} (${res.actual % 2 === 0 ? "pair" : "impair"}) — −${eur(res.stake)}`;
-      box.classList.add("lose");
-      toast("Dé : −" + eur(res.stake), "err");
-    }
-  });
-  setBusy(["dice-even","dice-odd"], false);
-}
-document.getElementById("dice-even").addEventListener("click", () => playDice("even"));
-document.getElementById("dice-odd").addEventListener("click", () => playDice("odd"));
-
-// --- Chifoumi ---
-const RPS_EMOJI = { pierre:"✊", feuille:"✋", ciseaux:"✌️" };
-async function playRps(choice) {
-  if (!(await waitAd())) return;
-  setBusy(["rps-pierre","rps-feuille","rps-ciseaux"], true);
-  document.getElementById("rps-you").textContent = RPS_EMOJI[choice];
-  document.getElementById("rps-cpu").textContent = "❔";
-  const box = document.getElementById("rps-result");
-  box.className = "coinflip-result";
-  box.textContent = "…";
-  const r = await playStake("rps", choice, "stake-rps", "rps-result", (res) => {
-    document.getElementById("rps-cpu").textContent = RPS_EMOJI[res.actual] || "❔";
-    if (res.draw) {
-      box.textContent = "Égalité — mise rendue.";
-      toast("Chifoumi : égalité");
-    } else if (res.won) {
-      box.textContent = `🎉 ${RPS_EMOJI[choice]} bat ${RPS_EMOJI[res.actual]} — +${eur(res.stake)}`;
-      box.classList.add("win");
-      toast("Chifoumi : +" + eur(res.stake), "gold");
-    } else {
-      box.textContent = `😕 ${RPS_EMOJI[res.actual]} bat ${RPS_EMOJI[choice]} — −${eur(res.stake)}`;
-      box.classList.add("lose");
-      toast("Chifoumi : −" + eur(res.stake), "err");
-    }
-  });
-  setBusy(["rps-pierre","rps-feuille","rps-ciseaux"], false);
-}
-document.getElementById("rps-pierre").addEventListener("click", () => playRps("pierre"));
-document.getElementById("rps-feuille").addEventListener("click", () => playRps("feuille"));
-document.getElementById("rps-ciseaux").addEventListener("click", () => playRps("ciseaux"));
-
-// --- Slots ---
-const SLOT_SYM = ["🍒","🍋","🍇","🔔","⭐","7️⃣"];
-let slotsBusy = false;
-document.getElementById("slots-spin").addEventListener("click", async () => {
-  if (slotsBusy) return;
-  if (!(await waitAd())) return;
-  if (slotsBusy) return;
-  slotsBusy = true;
-  const btn = document.getElementById("slots-spin");
-  btn.disabled = true;
-  const box = document.getElementById("slots-result");
-  box.className = "coinflip-result";
-  box.textContent = "…";
-  ["slot-0","slot-1","slot-2"].forEach((id) => document.getElementById(id).classList.add("spin"));
-  const spinInt = setInterval(() => {
-    for (let i = 0; i < 3; i++) {
-      document.getElementById("slot-" + i).textContent = SLOT_SYM[Math.floor(Math.random() * SLOT_SYM.length)];
-    }
-  }, 90);
-  const r = await playStake("slots", "spin", "stake-slots", "slots-result", () => {});
-  clearInterval(spinInt);
-  ["slot-0","slot-1","slot-2"].forEach((id) => document.getElementById(id).classList.remove("spin"));
-  if (r && r.reels) {
-    r.reels.forEach((s, i) => { document.getElementById("slot-" + i).textContent = s; });
-    const net = r.payout;
-    if (net > 0) {
-      box.textContent = (r.kind === "jackpot" ? "💎 Jackpot ! " : "✅ ") + "+" + eur(net);
-      box.classList.add("win");
-      toast("Machine à sous : +" + eur(net), "gold");
-    } else {
-      box.textContent = "Pas de combo — −" + eur(r.stake);
-      box.classList.add("lose");
-      toast("Machine à sous : −" + eur(r.stake), "err");
-    }
-  }
-  btn.disabled = false;
-  slotsBusy = false;
-});
-
-// --- Rouge / Noir ---
-async function playColor(choice) {
-  if (!(await waitAd())) return;
-  setBusy(["color-rouge","color-noir"], true);
-  const ball = document.getElementById("color-ball");
-  const box = document.getElementById("color-result");
-  box.className = "coinflip-result";
-  box.textContent = "…";
-  ball.classList.remove("spin");
-  void ball.offsetWidth;
-  ball.classList.add("spin");
-  await playStake("color", choice, "stake-color", "color-result", (res) => {
-    ball.textContent = res.actual === "rouge" ? "🔴" : "⚫";
-    if (res.won) {
-      box.textContent = `🎉 ${res.actual === "rouge" ? "Rouge" : "Noir"} — +${eur(res.stake)}`;
-      box.classList.add("win");
-      toast("Roulette : +" + eur(res.stake), "gold");
-    } else {
-      box.textContent = `😕 ${res.actual === "rouge" ? "Rouge" : "Noir"} — −${eur(res.stake)}`;
-      box.classList.add("lose");
-      toast("Roulette : −" + eur(res.stake), "err");
-    }
-  });
-  setBusy(["color-rouge","color-noir"], false);
-}
-document.getElementById("color-rouge").addEventListener("click", () => playColor("rouge"));
-
-
-
-document.getElementById("color-noir").addEventListener("click", () => playColor("noir"));
-
-// ===== MINES =====
-let minesId = null, minesBusy = false;
-function minesBuild(revealed, mines, boomTile, playing) {
-  const g = document.getElementById("mines-grid");
-  g.innerHTML = "";
-  const rev = new Set(revealed || []);
-  const mn = new Set(mines || []);
-  for (let i = 0; i < 25; i++) {
-    const b = document.createElement("button");
-    b.className = "mine-cell";
-    b.type = "button";
-    if (rev.has(i) && !(mn.has(i))) { b.textContent = "💎"; b.classList.add("gem"); b.disabled = true; }
-    else if (mn.has(i) && (boomTile === i || !playing)) { b.textContent = "💣"; b.classList.add("boom"); b.disabled = true; }
-    else if (!playing) { b.textContent = mn.has(i) ? "💣" : ""; b.classList.add("safe"); b.disabled = true; }
-    else { b.textContent = ""; b.onclick = () => minesReveal(i); }
-    g.appendChild(b);
-  }
-}
-minesBuild([], [], null, false);
-async function minesReveal(tile) {
-  if (!minesId || minesBusy) return;
-  minesBusy = true;
-  try {
-    const r = await API.post("mines_reveal", { id: minesId, tile });
-    if (r.status === "lost") {
-      minesId = null;
-      minesBuild(r.revealed, r.mines, r.tile, false);
-      document.getElementById("mines-msg").textContent = "💣 Mine ! Tu perds " + eur(r.stake);
-      document.getElementById("mines-out").disabled = true;
-      document.getElementById("mines-go").disabled = false;
-      toast("Mines : perdu, −" + eur(r.stake), "err");
-      await refresh();
-    } else {
-      minesBuild(r.revealed, [], null, true);
-      document.getElementById("mines-msg").textContent = r.gems + " gemmes · " + r.multiplier.toFixed(2) + "x · " + eur(r.payout);
-      document.getElementById("mines-out").disabled = false;
-    }
-  } catch (ex) { toast(ex.message, "err"); }
-  minesBusy = false;
-}
-document.getElementById("mines-go").addEventListener("click", async () => {
-  if (minesBusy) return;
-  if (!(await waitAd())) return;
-  minesBusy = true;
-  document.getElementById("mines-go").disabled = true;
-  try {
-    const r = await API.post("mines_start", { stake_cents: selectedStake("stake-mines") });
-    minesId = r.id;
-    minesBuild([], [], null, true);
-    document.getElementById("mines-msg").textContent = "4 mines cachées. Avance, ou retire.";
-    document.getElementById("mines-out").disabled = true;
-    await refresh();
-  } catch (ex) {
-    toast(ex.message, "err");
-    document.getElementById("mines-go").disabled = false;
-  }
-  minesBusy = false;
-});
-document.getElementById("mines-out").addEventListener("click", async () => {
-  if (!minesId) return;
-  document.getElementById("mines-out").disabled = true;
-  try {
-    const r = await API.post("mines_cashout", { id: minesId });
-    minesId = null;
-    minesBuild([], r.mines || [], null, false);
-    document.getElementById("mines-msg").textContent = "Retiré " + r.multiplier.toFixed(2) + "x → +" + eur(r.payout);
-    document.getElementById("mines-go").disabled = false;
-    toast("Mines : +" + eur(r.payout), "gold");
-    await refresh();
-  } catch (ex) {
-    toast(ex.message, "err");
-    document.getElementById("mines-out").disabled = false;
-  }
-});
-document.getElementById("vip-day").addEventListener("click", () => buyVip("day"));
-document.getElementById("vip-week").addEventListener("click", () => buyVip("week"));
-async function buyVip(plan) {
-  try {
-    const r = await API.post("buy_vip", { plan });
-    toast(r.message || "Sans pub activé !", "gold");
-    await refresh();
-  } catch (ex) { toast(ex.message, "err"); }
-}
-
-
-// ===== EXPRESS (avion / crash) =====
-let crashId = null, crashRaf = null, crashStartPerf = 0, crashK = 0.07, crashBusy = false, crashPollAt = 0;
-function crashSetMsg(t, cls) {
-  const el = document.getElementById("crash-msg");
-  el.textContent = t;
-  el.className = "crash-msg" + (cls ? " " + cls : "");
-}
-function crashStopAnim() {
-  if (crashRaf) cancelAnimationFrame(crashRaf);
-  crashRaf = null;
-}
-function crashFrame() {
-  const t = (performance.now() - crashStartPerf) / 1000;
-  const m = Math.exp(crashK * Math.max(0, t));
-  const el = document.getElementById("crash-mult");
-  el.textContent = m.toFixed(2) + "x";
-  el.className = "crash-mult" + (m >= 2 ? " hot" : "");
-  const plane = document.getElementById("crash-plane");
-  const pct = Math.min(78, 8 + t * 7);
-  plane.style.left = (8 + t * 4.2) + "%";
-  plane.style.bottom = pct + "%";
-  const btn = document.getElementById("crash-out");
-  btn.textContent = "💸 Retirer " + m.toFixed(2) + "x";
-  if (performance.now() - crashPollAt > 180) {
-    crashPollAt = performance.now();
-    crashPoll();
-  }
-  crashRaf = requestAnimationFrame(crashFrame);
-}
-async function crashPoll() {
-  if (!crashId) return;
-  try {
-    const s = await API.post("crash_status", { id: crashId });
-    if (s.status === "lost") crashLose(s);
-    if (s.status === "won") crashWin(s);
-  } catch (e) {}
-}
-function crashLose(s) {
-  crashId = null;
-  crashBusy = false;
-  crashStopAnim();
-  document.getElementById("crash-sky").classList.add("crashed");
-  const el = document.getElementById("crash-mult");
-  el.textContent = "💥 " + Number(s.crash_at).toFixed(2) + "x";
-  el.className = "crash-mult boom";
-  crashSetMsg("Crash à " + Number(s.crash_at).toFixed(2) + "x — tu perds " + eur(s.stake));
-  document.getElementById("crash-out").disabled = true;
-  document.getElementById("crash-go").disabled = false;
-  toast("Express : crash, −" + eur(s.stake), "err");
-  refresh();
-}
-function crashWin(s) {
-  crashId = null;
-  crashBusy = false;
-  crashStopAnim();
-  document.getElementById("crash-mult").textContent = Number(s.at).toFixed(2) + "x";
-  crashSetMsg("Retiré à " + Number(s.at).toFixed(2) + "x → +" + eur(s.payout));
-  document.getElementById("crash-out").disabled = true;
-  document.getElementById("crash-go").disabled = false;
-  toast("Express : +" + eur(s.payout), "gold");
-  refresh();
-}
-document.getElementById("crash-go").addEventListener("click", async () => {
-  if (crashBusy) return;
-  if (!(await waitAd())) return;
-  crashBusy = true;
-  document.getElementById("crash-go").disabled = true;
-  document.getElementById("crash-sky").classList.remove("crashed");
-  document.getElementById("crash-plane").style.left = "8%";
-  document.getElementById("crash-plane").style.bottom = "18%";
-  document.getElementById("crash-mult").className = "crash-mult";
-  crashSetMsg("Décollage…");
-  try {
-    const stake = selectedStake("stake-crash");
-    const r = await API.post("crash_start", { stake_cents: stake });
-    crashId = r.id;
-    crashK = r.k || 0.07;
-    crashStartPerf = performance.now();
-    crashPollAt = 0;
-    document.getElementById("crash-out").disabled = false;
-    crashSetMsg("Retire avant le crash !");
-    crashStopAnim();
-    crashRaf = requestAnimationFrame(crashFrame);
-    refresh();
-  } catch (ex) {
-    crashBusy = false;
-    document.getElementById("crash-go").disabled = false;
-    crashSetMsg(ex.message);
-    toast(ex.message, "err");
-  }
-});
-document.getElementById("crash-out").addEventListener("click", async () => {
-  if (!crashId) return;
-  document.getElementById("crash-out").disabled = true;
-  try {
-    const s = await API.post("crash_cashout", { id: crashId });
-    if (s.status === "lost") crashLose(s);
-    else crashWin(s);
-  } catch (ex) {
-    toast(ex.message, "err");
-    document.getElementById("crash-out").disabled = false;
-  }
-});
-
-
-// ===== FUN (pubs → quelques centimes) =====
-const FUN_QUIZ = [
-  { q: "Combien de centimes dans 1 euro ?", a: ["10", "100", "1000"], ok: 1 },
-  { q: "Le koala est-il un ours ?", a: ["Oui", "Non", "Parfois"], ok: 1 },
-  { q: "Quelle est la couleur du cheval blanc d'Henri IV ?", a: ["Blanc", "Noir", "Invisible"], ok: 0 },
-  { q: "2 + 2 = ?", a: ["3", "4", "22"], ok: 1 },
-];
-async function claimFun(kind, resId, onWin) {
-  if (!(await waitAd())) return null;
-  const box = document.getElementById(resId);
-  box.className = "coinflip-result";
-  box.textContent = "…";
-  try {
-    const r = await API.post("claim_fun", { kind });
-    box.textContent = `+${eur(r.reward)}  (encore ${r.left} aujourd'hui)`;
-    box.classList.add("win");
-    toast("Fun : +" + eur(r.reward), "gold");
-    if (onWin) onWin(r);
-    await refresh();
-    return r;
-  } catch (ex) {
-    box.textContent = ex.message;
-    toast(ex.message, "err");
-    return null;
-  }
-}
-document.getElementById("fun-scratch").addEventListener("click", async () => {
-  document.getElementById("scratch-box").textContent = "✨";
-  const r = await claimFun("scratch", "fun-scratch-res", (res) => {
-    document.getElementById("scratch-box").textContent = res.reward >= 2 ? "💶" : "🪙";
-  });
-  if (!r) document.getElementById("scratch-box").textContent = "❓";
-});
-document.getElementById("fun-chest").addEventListener("click", async () => {
-  document.getElementById("fun-chest-emoji").textContent = "📦";
-  await claimFun("chest", "fun-chest-res", (res) => {
-    document.getElementById("fun-chest-emoji").textContent = res.reward >= 2 ? "💎" : "🪙";
-  });
-});
-document.getElementById("fun-balloon").addEventListener("click", async () => {
-  const r = await claimFun("balloon", "fun-balloon-res");
-  if (!r) return;
-  document.querySelectorAll("#balloon-row .balloon").forEach((b, i) => {
-    setTimeout(() => { b.classList.add("pop"); b.textContent = i === 2 ? "🪙" : "💥"; }, i * 120);
-  });
-  setTimeout(() => {
-    document.querySelectorAll("#balloon-row .balloon").forEach((b) => { b.classList.remove("pop"); b.textContent = "🎈"; });
-  }, 1600);
-});
-document.getElementById("fun-quiz").addEventListener("click", async () => {
-  const item = FUN_QUIZ[Math.floor(Math.random() * FUN_QUIZ.length)];
-  document.getElementById("fun-quiz-q").textContent = item.q;
-  const opts = document.getElementById("fun-quiz-opts");
-  opts.innerHTML = "";
-  item.a.forEach((label, i) => {
-    const b = document.createElement("button");
-    b.className = "game-btn small";
-    b.textContent = label;
-    b.onclick = async () => {
-      opts.querySelectorAll("button").forEach((x) => x.disabled = true);
-      await claimFun("quiz", "fun-quiz-res");
-    };
-    opts.appendChild(b);
-  });
-});
-
-
 
 // ===== BONUS =====
 document.getElementById("claim-bonus-btn").addEventListener("click", async () => {
-  if (!(await waitAd())) return;
   try {
     const r = await API.post("claim_bonus");
     toast("Bonus de +" + eur(r.reward) + " réclamé ! 🎁", "gold");
@@ -1135,8 +626,6 @@ document.getElementById("spin-btn").addEventListener("click", () => {
   document.getElementById("wheel-result").textContent = "Lance la roue !";
 });
 document.getElementById("wheel-spin-btn").addEventListener("click", async () => {
-  if (spinning) return;
-  if (!(await waitAd())) return;
   if (spinning) return;
   spinning = true;
   document.getElementById("wheel-result").textContent = "…";
@@ -1189,19 +678,9 @@ function renderHistory(recent) {
 }
 
 // ===== WITHDRAW =====
-function refreshGiftLocks() {
-  document.querySelectorAll(".gift-card").forEach((b) => { b.disabled = true; });
-}
-document.querySelectorAll(".gift-card").forEach((b) => {
-  b.addEventListener("click", () => {
-    toast("Cette carte arrive bientôt — pas encore disponible.", "err");
-  });
-});
-
 const WD_METHODS = { paypal: "Email PayPal", virement: "IBAN", crypto: "Adresse USDT (TRC20)" };
 document.getElementById("wd-method").addEventListener("change", (e) => {
   document.getElementById("wd-details-label").textContent = WD_METHODS[e.target.value];
-  document.getElementById("wd-details").placeholder = WD_PLACEHOLDERS[e.target.value] || "";
 });
 document.getElementById("wd-submit").addEventListener("click", async () => {
   const amount = parseFloat(document.getElementById("wd-amount").value);
@@ -1211,7 +690,7 @@ document.getElementById("wd-submit").addEventListener("click", async () => {
   const cents = Math.round(amount * 100);
   try {
     const r = await API.post("withdraw", { amount_cents: cents, method, details });
-    toast(r.message || "Demande envoyée !");
+    toast(r.message || "Demande envoyée !", "gold");
     document.getElementById("wd-amount").value = "";
     document.getElementById("wd-details").value = "";
     await refresh();
@@ -1291,11 +770,7 @@ async function loadAdmin() {
       const add = document.createElement("button");
       add.className = "btn-sm"; add.textContent = "+0,50 €"; add.style.marginLeft = "6px";
       add.onclick = async () => { await API.post("admin/user_adjust", { id: u.id, delta: 50 }); loadAdmin(); toast("+0,50 € ajouté."); };
-
-      const vipb = document.createElement("button");
-      vipb.className = "btn-sm"; vipb.textContent = "⭐ VIP 7j"; vipb.style.marginLeft = "6px";
-      vipb.onclick = async () => { await API.post("admin/user_vip", { id: u.id, days: 7 }); loadAdmin(); toast("VIP 7 jours."); };
-      td.appendChild(ban); td.appendChild(add); td.appendChild(vipb);
+      td.appendChild(ban); td.appendChild(add);
       ub.appendChild(tr);
     });
 
@@ -1363,47 +838,55 @@ function hostOf(url) {
   try { return new URL(url).hostname; } catch (e) { return url; }
 }
 
+// ===== ANNONCES (smart links) =====
+const AD_LINKS = [
+  "https://underminestudiedboot.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
+  "https://underminestudiedboot.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
+  "https://underminestudiedboot.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
+  "https://underminestudiedboot.com/cqzwrxqe5k?key=e76ed5d650cf26023dda969a911f12d1",
+  "https://underminestudiedboot.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7",
+  "https://underminestudiedboot.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
+  "https://underminestudiedboot.com/dtd3t9q1?key=5d7813021de8138224b566d8c582d183",
+  "https://underminestudiedboot.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
+  "https://underminestudiedboot.com/ewpy9gtfrn?key=49586d19186a4f51110d48c141351fa4",
+  "https://underminestudiedboot.com/b90cx5y3?key=0cb3e87f53b90373a65859342c1ab694",
+  "https://underminestudiedboot.com/qiwe85grc?key=83226b59982f37eb31bf5efafb1a5a29",
+  "https://underminestudiedboot.com/cyrm5fgis?key=517bf4c2047981143f64fe418a024d00",
+  "https://underminestudiedboot.com/xw1r7mp1t8?key=0836c2f424ad47c911b20c8ae6e4e77e",
+  "https://underminestudiedboot.com/nfv5bb5tx4?key=f216c6e41e54bde80d762ad61ed53c11",
+  "https://underminestudiedboot.com/z0dfk8jc?key=f1bff217207649b313c23ecaaab0bc1e",
+  "https://underminestudiedboot.com/m5fcdbri?key=9fc5e54ac541cee2fdd113a2d518ac8e",
+  "https://underminestudiedboot.com/pu5ce9ayg?key=7fa63f6495b6ee7409066dd74d0e1e17",
+  "https://underminestudiedboot.com/epabf723eb?key=9bff17bda2e3e2698748376115e1b694",
+  "https://underminestudiedboot.com/jdxdxns7?key=a539ee2c9bc17fe11093b220d280e44f",
+  "https://underminestudiedboot.com/n5ds0frdq1?key=b55345b9329070d595f881fb570d5317",
+  "https://underminestudiedboot.com/y4as8d7bet?key=ad9ef0421eb95cec114bcc5fce3d9ae8",
+  "https://underminestudiedboot.com/c7qfe4dikr?key=69d1f3bf8ac6de7391cf3eaa1d77e1a1",
+];
+
+function renderAds(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = "";
+  AD_LINKS.forEach((url, i) => {
+    const a = document.createElement("a");
+    a.className = "ad-box";
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener nofollow";
+    a.innerHTML = '<span class="ad-ico">📢</span><span class="ad-txt">Annonce ' + (i + 1) + '</span>';
+    el.appendChild(a);
+  });
+}
+renderAds("ad-grid-auth");
+renderAds("ad-grid-footer");
+
 // ===== modal close on backdrop =====
 ["video-modal", "ptc-modal", "survey-modal", "cpa-modal"].forEach((id) => {
   document.getElementById(id).addEventListener("click", (e) => {
     if (e.target.id === id) document.getElementById(id).classList.add("hidden");
   });
 });
-
-// ===== VIDÉO D'ACCUEIL (démo, sans argent, avec son) =====
-let introShown = false;
-function closeIntro() {
-  localStorage.setItem("rb_intro_seen", "1");
-  const m = document.getElementById("intro-modal");
-  if (m) m.classList.add("hidden");
-  const vid = document.getElementById("intro-video");
-  try { vid.pause(); } catch (e) {}
-}
-function maybeShowIntro() {
-  if (introShown) return;
-  if (localStorage.getItem("rb_intro_seen") === "1") return;
-  const m = document.getElementById("intro-modal");
-  if (!m) return;
-  introShown = true;
-  m.classList.remove("hidden");
-  const vid = document.getElementById("intro-video");
-  vid.muted = false;
-  vid.volume = 1;
-}
-document.getElementById("intro-play").addEventListener("click", async () => {
-  const vid = document.getElementById("intro-video");
-  vid.muted = false;
-  vid.volume = 1;
-  try { vid.currentTime = 0; await vid.play(); } catch (e) { toast("Clique sur lecture dans la vidéo pour entendre le son.", "err"); }
-  document.getElementById("intro-play").classList.add("hidden");
-  document.getElementById("intro-claim").classList.remove("hidden");
-});
-document.getElementById("intro-video").addEventListener("ended", () => {
-  document.getElementById("intro-claim").classList.remove("hidden");
-  document.getElementById("intro-play").classList.add("hidden");
-});
-document.getElementById("intro-claim").addEventListener("click", () => closeIntro());
-document.getElementById("intro-skip").addEventListener("click", () => closeIntro());
 
 // ===== boot =====
 (async function boot() {
