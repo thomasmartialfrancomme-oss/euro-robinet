@@ -1161,7 +1161,7 @@ const ZONE_3452680 = [
 function fillHighPayAds() {
   const els = document.querySelectorAll(".login-hit-ad");
   if (!els.length) return;
-  const pool = ZONE_3452680.slice();
+  const pool = ADULT_LINKS.slice();
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
