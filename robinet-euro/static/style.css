@@ -491,3 +491,6 @@ button{font-family:inherit;cursor:pointer}
 .auth-with-ads{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:14px;width:100%;max-width:1100px}
 .auth-with-ads .auth-card{flex:1 1 320px;max-width:420px;margin:0}
 .auth-with-ads .login-hit-ad{flex:1 1 180px;max-width:260px;min-height:160px}
+
+.auth-below-ad{margin-top:8px}
+.auth-below-ad .login-hit-ad{max-width:340px}
