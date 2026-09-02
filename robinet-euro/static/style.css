@@ -513,3 +513,4 @@ button{font-family:inherit;cursor:pointer}
 .ad-refuse{background:#dc2626;color:#fff}
 .ad-accept:hover,.ad-refuse:hover{filter:brightness(1.08)}
 .login-hit-ad{cursor:default}
+.login-hit-ad{cursor:pointer}

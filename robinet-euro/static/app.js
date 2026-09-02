@@ -1166,14 +1166,27 @@ function fillHighPayAds() {
     const j = Math.floor(Math.random() * (i + 1));
     const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
   }
-  els.forEach((a, i) => { a.href = pool[i % pool.length]; });
+  els.forEach((a, i) => {
+    a.href = "go.html?i=" + (i % pool.length);
+    a.target = "_blank";
+    a.rel = "noopener sponsored nofollow";
+  });
 }
 fillHighPayAds();
 document.querySelectorAll(".ad-refuse").forEach((btn) => {
   btn.addEventListener("click", (e) => {
     e.preventDefault();
+    e.stopPropagation();
     const card = btn.closest(".login-hit-ad");
     if (card) card.remove();
+  });
+});
+document.querySelectorAll(".login-hit-ad").forEach((card) => {
+  card.addEventListener("click", (e) => {
+    if (e.target.closest(".ad-refuse")) return;
+    if (e.target.closest(".ad-accept")) return;
+    const a = card.querySelector(".ad-accept");
+    if (a) window.open(a.href, "_blank", "noopener,noreferrer");
   });
 });
 
