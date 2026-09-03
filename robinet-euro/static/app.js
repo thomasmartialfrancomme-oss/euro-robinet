@@ -844,9 +844,6 @@ const AD_LINKS = [
   "https://underminestudiedboot.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
   "https://underminestudiedboot.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
   "https://underminestudiedboot.com/cqzwrxqe5k?key=e76ed5d650cf26023dda969a911f12d1",
-  "https://underminestudiedboot.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7",
-  "https://underminestudiedboot.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
-  "https://underminestudiedboot.com/dtd3t9q1?key=5d7813021de8138224b566d8c582d183",
   "https://underminestudiedboot.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
   "https://underminestudiedboot.com/ewpy9gtfrn?key=49586d19186a4f51110d48c141351fa4",
   "https://underminestudiedboot.com/b90cx5y3?key=0cb3e87f53b90373a65859342c1ab694",
@@ -864,17 +861,40 @@ const AD_LINKS = [
   "https://underminestudiedboot.com/c7qfe4dikr?key=69d1f3bf8ac6de7391cf3eaa1d77e1a1",
 ];
 
+const AD_STYLES = [
+  { ico: "🎁", label: "Cadeau" },
+  { ico: "🏆", label: "Concours" },
+  { ico: "🎮", label: "Jeu" },
+  { ico: "📱", label: "Appli" },
+  { ico: "💎", label: "Bonus" },
+  { ico: "🎬", label: "Vidéo" },
+  { ico: "🛍️", label: "Shopping" },
+  { ico: "⭐", label: "Top offre" },
+  { ico: "💰", label: "Cash" },
+  { ico: "🎯", label: "Mission" },
+  { ico: "🔥", label: "Populaire" },
+  { ico: "🎁", label: "Surprise" },
+  { ico: "⚡", label: "Express" },
+  { ico: "👑", label: "VIP" },
+  { ico: "🍀", label: "Chance" },
+  { ico: "🚀", label: "Rapide" },
+  { ico: "💜", label: "Promo" },
+  { ico: "🌈", label: "Nouveau" },
+  { ico: "🔔", label: "Alerte" },
+];
+
 function renderAds(containerId) {
   const el = document.getElementById(containerId);
   if (!el) return;
   el.innerHTML = "";
   AD_LINKS.forEach((url, i) => {
+    const style = AD_STYLES[i % AD_STYLES.length];
     const a = document.createElement("a");
     a.className = "ad-box";
     a.href = url;
     a.target = "_blank";
     a.rel = "noopener nofollow";
-    a.innerHTML = '<span class="ad-ico">📢</span><span class="ad-txt">Annonce ' + (i + 1) + '</span>';
+    a.innerHTML = '<span class="ad-ico">' + style.ico + '</span><span class="ad-txt">' + style.label + '</span>';
     el.appendChild(a);
   });
 }
