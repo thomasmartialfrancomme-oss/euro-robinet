@@ -355,6 +355,8 @@ button{font-family:inherit;cursor:pointer}
 
 .pub-banner-top{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px}
 .pub-banners{width:100%;display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:6px}
+.adzone{display:flex;flex-direction:column;align-items:center;gap:6px;margin:14px auto;width:100%;max-width:760px}
+.adzone-top{margin:10px auto 0}
 .pub-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);opacity:.7}
 .pub-slot{
   display:flex;justify-content:center;align-items:center;overflow:hidden;
