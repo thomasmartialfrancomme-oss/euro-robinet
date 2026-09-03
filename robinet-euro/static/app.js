@@ -827,6 +827,51 @@ document.getElementById("of-create").addEventListener("click", async () => {
   } catch (ex) { toast(ex.message, "err"); }
 });
 
+// ===== PUBLICITÉS PAGE ACCUEIL =====
+// ➤ Chaque carré ouvre TON lien d'affiliation (smart link) directement dans un nouvel onglet.
+//    Pour changer un lien : remplace le champ "link" ci-dessous par le tien.
+const LANDING_ADS = [
+  { id: "Smartlink_1",  cat: "OFFRE",     icon: "🎁", title: "Bonus Exclusif",        tag: "Cadeau de bienvenue pour les nouveaux", cta: "DÉCOUVRIR", grad: "linear-gradient(160deg,#1e3a8a,#2563eb 55%,#93c5fd)", link: "https://underminestudiedboot.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076" },
+  { id: "Smartlink_2",  cat: "SURPRISE",  icon: "✨", title: "Offre Limitée",          tag: "Une surprise t'attend — vite", cta: "J'EN PROFITE", grad: "linear-gradient(160deg,#701a75,#c026d3 55%,#f5d0fe)", link: "https://underminestudiedboot.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d" },
+  { id: "Smartlink_3",  cat: "CADEUX",    icon: "💝", title: "Pack Cadeau",            tag: "Ton pack offert est disponible", cta: "LE RÉCUPÉRER", grad: "linear-gradient(160deg,#9a3412,#ea580c 55%,#fdba74)", link: "https://underminestudiedboot.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005" },
+  { id: "Smartlink_4",  cat: "CLUB",      icon: "💎", title: "Club Privé",             tag: "Accès VIP offert aujourd'hui", cta: "REJOINDRE", grad: "linear-gradient(160deg,#312e81,#6d28d9 55%,#c4b5fd)", link: "https://underminestudiedboot.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7" },
+  { id: "Smartlink_5",  cat: "BONUS",     icon: "💰", title: "Bonus Spécial",          tag: "Profites-en avant la fin du jour", cta: "EN PROFITER", grad: "linear-gradient(160deg,#14532d,#16a34a 55%,#bbf7d0)", link: "https://underminestudiedboot.com/cqzwrxqe5k?key=e76ed5d650cf26023dda969a911f12d1" },
+  { id: "Smartlink_6",  cat: "NOUVEAU",   icon: "🔥", title: "Nouveauté Chaude",       tag: "Tout le monde en parle", cta: "VOIR", grad: "linear-gradient(160deg,#7c2d12,#dc2626 55%,#fca5a5)", link: "https://underminestudiedboot.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98" },
+  { id: "Smartlink_7",  cat: "PRIVÉ",     icon: "🔐", title: "Espace Privé",           tag: "Réservé — accès gratuit cette semaine", cta: "ENTRER", grad: "linear-gradient(160deg,#1f2937,#4b5563 55%,#9ca3af)", link: "https://underminestudiedboot.com/dtd3t9q1?key=5d7813021de8138224b566d8c582d183" },
+  { id: "Smartlink_8",  cat: "VIP",       icon: "👑", title: "VIP Selection",          tag: "Choisi juste pour toi", cta: "DÉCOUVRIR", grad: "linear-gradient(160deg,#451a03,#92400e 55%,#fcd34d)", link: "https://underminestudiedboot.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46" },
+  { id: "Smartlink_9",  cat: "BON PLAN",  icon: "🛍️", title: "Bon Plan Du Jour",       tag: "Offre spéciale réservée à peu de monde", cta: "J'Y VAIS", grad: "linear-gradient(160deg,#0c4a6e,#0284c7 55%,#7dd3fc)", link: "https://underminestudiedboot.com/epabf723eb?key=9bff17bda2e3e2698748376115e1b694" },
+  { id: "Smartlink_10", cat: "JEU",       icon: "🎮", title: "Petit Jeu, Gros Gain",   tag: "Essaie et repars avec un bonus", cta: "JOUER", grad: "linear-gradient(160deg,#4a044e,#a21caf 55%,#e9d5ff)", link: "https://underminestudiedboot.com/jdxdxns7?key=a539ee2c9bc17fe11093b220d280e44f" },
+];
+
+function renderLandingAds() {
+  const grid = document.getElementById("ads-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  LANDING_ADS.forEach((a) => {
+    const btn = document.createElement("button");
+    btn.className = "ad-square";
+    btn.type = "button";
+    btn.style.background = a.grad;
+    btn.title = "Publicité — " + a.id;
+    btn.setAttribute("aria-label", "Publicité : " + a.title);
+    btn.innerHTML = `
+      <span class="pub-tag">PUB</span>
+      <div class="ad-art">${a.icon}</div>
+      <div class="ad-cat">${a.cat}</div>
+      <div class="ad-name">${escapeHtml(a.title)}</div>
+      <div class="ad-tag">${escapeHtml(a.tag)}</div>
+      <span class="ad-go">${a.cta}</span>`;
+    // Ouverture DIRECTE du lien d'affiliation dans un nouvel onglet
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      window.open(a.link, "_blank", "noopener,noreferrer");
+    });
+    grid.appendChild(btn);
+  });
+}
+
+renderLandingAds();
+
 // ===== utils =====
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -837,8 +882,6 @@ function slug(s) {
 function hostOf(url) {
   try { return new URL(url).hostname; } catch (e) { return url; }
 }
-
-// ===== ANNONCES désactivées =====
 
 // ===== modal close on backdrop =====
 ["video-modal", "ptc-modal", "survey-modal", "cpa-modal"].forEach((id) => {
