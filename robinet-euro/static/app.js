@@ -30,6 +30,80 @@ const API = {
 // ===== helpers =====
 const eur = (c) => (c / 100).toFixed(2).replace(".", ",") + " €";
 
+// ===== PUB OBLIGATOIRE AVANT CHAQUE ACTION RÉCOMPENSÉE =====
+const AD_URL = "https://annualunion.com/caDj9.6hbR2E5mlSSNWRQd9/NIzbMJ3jOAT/gcxANAy/0J3MMpz/cx5FOKDMIux_";
+const AD_WAIT_SEC = 12;
+const AD_ACTIONS = {
+  claim_faucet: "d'ouvrir le robinet",
+  claim_bonus: "de réclamer ton bonus quotidien",
+  spin_wheel: "de lancer la roue de la fortune",
+  play_game: "de valider ta partie",
+  play_coinflip: "de jouer à Pile ou Face",
+};
+let adGateBusy = false;
+
+function waitForAd(verbLabel) {
+  return new Promise((resolve) => {
+    const m = document.getElementById("ad-gate-modal");
+    const action = document.getElementById("adg-action");
+    const openBtn = document.getElementById("adg-open");
+    const goBtn = document.getElementById("adg-go");
+    const status = document.getElementById("adg-status");
+    const cancel = document.getElementById("adg-cancel");
+    action.textContent = verbLabel;
+    openBtn.disabled = false;
+    goBtn.style.display = "none";
+    goBtn.disabled = true;
+    status.textContent = "Clique sur « Voir la publicité » pour lancer la pub.";
+    let timer = null;
+    let tick = 0;
+    const cleanup = () => {
+      if (timer) clearInterval(timer);
+      m.classList.add("hidden");
+      openBtn.disabled = false;
+      goBtn.disabled = true;
+      goBtn.style.display = "none";
+    };
+    openBtn.onclick = () => {
+      if (openBtn.disabled) return;
+      window.open(AD_URL, "_blank");
+      openBtn.disabled = true;
+      tick = AD_WAIT_SEC;
+      goBtn.style.display = "block";
+      goBtn.disabled = true;
+      status.textContent = "⏳ Patiente " + tick + " s…";
+      timer = setInterval(() => {
+        tick--;
+        if (tick <= 0) {
+          clearInterval(timer);
+          status.textContent = "Publicité vue ✓";
+          goBtn.disabled = false;
+        } else {
+          status.textContent = "⏳ Patiente " + tick + " s…";
+        }
+      }, 1000);
+    };
+    goBtn.onclick = () => { cleanup(); resolve(true); };
+    cancel.onclick = (e) => { e.preventDefault(); cleanup(); resolve(false); };
+    m.classList.remove("hidden");
+  });
+}
+
+// interception : les actions ci-dessus exigent la pub avant d'appeler le serveur
+const _apiPostRaw = API.post.bind(API);
+API.post = async function (path, body) {
+  if (AD_ACTIONS[path] && !adGateBusy) {
+    adGateBusy = true;
+    try {
+      const ok = await waitForAd(AD_ACTIONS[path]);
+      if (!ok) throw new Error("Action annulée.");
+    } finally {
+      adGateBusy = false;
+    }
+  }
+  return _apiPostRaw(path, body);
+};
+
 function toast(msg, type) {
   const c = document.getElementById("toast-container");
   const t = document.createElement("div");
