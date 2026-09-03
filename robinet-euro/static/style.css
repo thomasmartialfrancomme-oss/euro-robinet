@@ -330,17 +330,17 @@ button{font-family:inherit;cursor:pointer}
 
 /* ===== ANNONCES (petits carrés) ===== */
 .ad-grid{
-  display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
-  max-width:760px;margin:0 auto;padding:10px;
+  display:flex;flex-wrap:wrap;gap:10px;justify-content:center;
+  max-width:760px;margin:0 auto;padding:12px;
 }
 .ad-box{
-  width:76px;height:76px;background:var(--card2);border:1px solid var(--line);
-  border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;color:var(--muted);font-size:11px;text-decoration:none;transition:.15s;
+  width:100px;height:100px;background:var(--card2);border:1px solid var(--line);
+  border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:6px;color:var(--muted);font-size:13px;text-decoration:none;transition:.15s;
 }
 .ad-box:hover{border-color:var(--accent);transform:translateY(-2px);color:var(--text)}
-.ad-box .ad-ico{font-size:22px;line-height:1}
-.ad-box .ad-txt{font-size:9px;text-align:center;line-height:1.1}
+.ad-box .ad-ico{font-size:30px;line-height:1}
+.ad-box .ad-txt{font-size:12px;text-align:center;line-height:1.1}
 
 /* ===== AUTH (connexion en bas) ===== */
 .auth-top{
