@@ -374,3 +374,17 @@ button{font-family:inherit;cursor:pointer}
   .pub-slot.pub-728{min-height:80px}
   .pub-slot.pub-160{min-height:250px}
 }
+
+/* ===== PAGE ACCUEIL : MUR DE PUB ===== */
+.landing-ad{display:flex;flex-direction:column;align-items:center;gap:5px}
+.landing-ad-top{width:100%}
+.landing-ad-pair{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;width:100%}
+.landing-ad-bottom{margin-top:4px}
+.auth-wrap{display:flex;align-items:flex-start;justify-content:center;gap:16px;width:100%;flex-wrap:wrap}
+.auth-mid{flex:0 1 430px;display:flex;justify-content:center;min-width:300px}
+.auth-mid .auth-card{width:100%;margin:0 auto}
+.auth-adside{display:flex;flex-direction:column;align-items:center;gap:12px}
+.pub-side-gap{height:12px}
+@media (max-width:900px){
+  .auth-adside{display:none}
+}
