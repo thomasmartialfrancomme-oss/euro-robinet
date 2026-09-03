@@ -840,25 +840,29 @@ function hostOf(url) {
 
 // ===== ANNONCES (smart links) =====
 const AD_LINKS = [
-  "https://underminestudiedboot.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
-  "https://underminestudiedboot.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
-  "https://underminestudiedboot.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
-  "https://underminestudiedboot.com/cqzwrxqe5k?key=e76ed5d650cf26023dda969a911f12d1",
-  "https://underminestudiedboot.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
-  "https://underminestudiedboot.com/ewpy9gtfrn?key=49586d19186a4f51110d48c141351fa4",
+  "https://underminestudiedboot.com/ba1q7dmk54?key=80d72180ffff8ff8d516545b27eab7c5",
+  "https://underminestudiedboot.com/m5fcdbri?key=9fc5e54ac541cee2fdd113a2d518ac8e",
   "https://underminestudiedboot.com/b90cx5y3?key=0cb3e87f53b90373a65859342c1ab694",
   "https://underminestudiedboot.com/qiwe85grc?key=83226b59982f37eb31bf5efafb1a5a29",
-  "https://underminestudiedboot.com/cyrm5fgis?key=517bf4c2047981143f64fe418a024d00",
-  "https://underminestudiedboot.com/xw1r7mp1t8?key=0836c2f424ad47c911b20c8ae6e4e77e",
-  "https://underminestudiedboot.com/nfv5bb5tx4?key=f216c6e41e54bde80d762ad61ed53c11",
-  "https://underminestudiedboot.com/z0dfk8jc?key=f1bff217207649b313c23ecaaab0bc1e",
-  "https://underminestudiedboot.com/m5fcdbri?key=9fc5e54ac541cee2fdd113a2d518ac8e",
   "https://underminestudiedboot.com/pu5ce9ayg?key=7fa63f6495b6ee7409066dd74d0e1e17",
-  "https://underminestudiedboot.com/epabf723eb?key=9bff17bda2e3e2698748376115e1b694",
-  "https://underminestudiedboot.com/jdxdxns7?key=a539ee2c9bc17fe11093b220d280e44f",
-  "https://underminestudiedboot.com/n5ds0frdq1?key=b55345b9329070d595f881fb570d5317",
-  "https://underminestudiedboot.com/y4as8d7bet?key=ad9ef0421eb95cec114bcc5fce3d9ae8",
+  "https://underminestudiedboot.com/xw1r7mp1t8?key=0836c2f424ad47c911b20c8ae6e4e77e",
+  "https://underminestudiedboot.com/z0dfk8jc?key=f1bff217207649b313c23ecaaab0bc1e",
+  "https://underminestudiedboot.com/ewpy9gtfrn?key=49586d19186a4f51110d48c141351fa4",
+  "https://underminestudiedboot.com/cyrm5fgis?key=517bf4c2047981143f64fe418a024d00",
+  "https://underminestudiedboot.com/nfv5bb5tx4?key=f216c6e41e54bde80d762ad61ed53c11",
   "https://underminestudiedboot.com/c7qfe4dikr?key=69d1f3bf8ac6de7391cf3eaa1d77e1a1",
+  "https://underminestudiedboot.com/y4as8d7bet?key=ad9ef0421eb95cec114bcc5fce3d9ae8",
+  "https://underminestudiedboot.com/n5ds0frdq1?key=b55345b9329070d595f881fb570d5317",
+  "https://underminestudiedboot.com/jdxdxns7?key=a539ee2c9bc17fe11093b220d280e44f",
+  "https://underminestudiedboot.com/epabf723eb?key=9bff17bda2e3e2698748376115e1b694",
+  "https://underminestudiedboot.com/xrj2wwcx?key=5d548f806d9be3e32cde29f5c2c84c46",
+  "https://underminestudiedboot.com/dtd3t9q1?key=5d7813021de8138224b566d8c582d183",
+  "https://underminestudiedboot.com/h9cb3jh4k7?key=184a55d172453d900c561f6593dc2e98",
+  "https://underminestudiedboot.com/cqzwrxqe5k?key=e76ed5d650cf26023dda969a911f12d1",
+  "https://underminestudiedboot.com/yi2rr3yjuq?key=287460e224979ae649faa68df92d57d7",
+  "https://underminestudiedboot.com/sz2snyj5?key=8a0900207beb506d4dc0941827542005",
+  "https://underminestudiedboot.com/j9dbdu8y?key=4d8d060b03defd30a670c7bf2630af5d",
+  "https://underminestudiedboot.com/dnrx4yh9?key=bd28226d1d00c89fda3647e404f52076",
 ];
 
 const AD_STYLES = [
@@ -881,6 +885,10 @@ const AD_STYLES = [
   { ico: "💜", label: "Promo" },
   { ico: "🌈", label: "Nouveau" },
   { ico: "🔔", label: "Alerte" },
+  { ico: "🎰", label: "Jackpot" },
+  { ico: "💸", label: "Gain" },
+  { ico: "🔞", label: "18+" },
+  { ico: "🎉", label: "Fête" },
 ];
 
 function renderAds(containerId) {
