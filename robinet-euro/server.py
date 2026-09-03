@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Robinet € — Site de micro-gains (démo)
-Backend autonome : Python stdlib + SQLite. Aucune dépendance externe.
+Robinet € — Site de micro-gains
+Backend : PostgreSQL (via DATABASE_URL) ou repli SQLite local (dev/test).
 """
 import http.server
 import json
-import sqlite3
 import os
 import hashlib
 import secrets
@@ -15,14 +14,33 @@ import random
 import re
 import urllib.parse
 
+try:
+    import sqlite3
+except ImportError:
+    sqlite3 = None
+
+try:
+    import psycopg2
+    import psycopg2.extras
+    HAS_PG = True
+except ImportError:
+    HAS_PG = False
+
 BASE = os.path.dirname(os.path.abspath(__file__))
-# Le dossier de données peut être défini par une variable d'environnement.
-# Sur un hébergeur, pointe DATA_DIR vers un disque persistant pour que la
-# base de données survive aux redéploiements.
-DATA_DIR = os.environ.get("DATA_DIR", BASE)
-DB_PATH = os.path.join(DATA_DIR, "data.db")
+# DATABASE_URL : chaîne de connexion PostgreSQL (ex: Supabase). Si elle est
+# définie, les données sont stockées dans une vraie base persistante qui
+# survit aux redéploiements. Sinon, repli sur SQLite local (dev/test).
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+DB_PATH = os.path.join(BASE, "data.db")
 STATIC = os.path.join(BASE, "static")
 PORT = int(os.environ.get("PORT", 8000))
+
+# Types d'exceptions "contrainte unique" selon le moteur utilisé.
+UNIQUE_ERRORS = ()
+if sqlite3 is not None:
+    UNIQUE_ERRORS = UNIQUE_ERRORS + (sqlite3.IntegrityError,)
+if HAS_PG:
+    UNIQUE_ERRORS = UNIQUE_ERRORS + (psycopg2.IntegrityError,)
 
 # ------- Paramètres -------
 MIN_WITHDRAW_CENTS = 200          # 2,00 €
@@ -41,11 +59,91 @@ COINFLIP_STAKE_CENTS = 5          # mise du jeu Pile ou Face (0,05 €)
 def now_ms():
     return int(time.time() * 1000)
 
+
+class Row(dict):
+    """Ligne de résultat compatible dict ET index (row[0], row['col'])."""
+    def __getitem__(self, k):
+        if isinstance(k, int):
+            return list(self.values())[k]
+        return dict.__getitem__(self, k)
+
+
+def _q(sql):
+    # Convertit les marqueurs ? (SQLite) en %s (PostgreSQL).
+    return sql.replace("?", "%s")
+
+
+def _pg_dsn():
+    dsn = DATABASE_URL
+    if "sslmode=" not in dsn:
+        sep = "&" if "?" in dsn else "?"
+        dsn = dsn + sep + "sslmode=require"
+    return dsn
+
+
+class PGCursor:
+    def __init__(self, cur):
+        self._cur = cur
+        self.lastrowid = None
+
+    def fetchone(self):
+        r = self._cur.fetchone()
+        return None if r is None else Row(r)
+
+    def fetchall(self):
+        return [Row(r) for r in self._cur.fetchall()]
+
+
+class PGConn:
+    def __init__(self):
+        self._conn = psycopg2.connect(_pg_dsn())
+
+    def execute(self, sql, params=()):
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(_q(sql), params)
+        return PGCursor(cur)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        try:
+            self._conn.rollback()
+        except Exception:
+            pass
+
+    def close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+
+
+class SQLiteConn:
+    def __init__(self):
+        self._conn = sqlite3.connect(DB_PATH)
+        self._conn.row_factory = sqlite3.Row
+
+    def execute(self, sql, params=()):
+        return self._conn.execute(sql, params)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        try:
+            self._conn.rollback()
+        except Exception:
+            pass
+
+    def close(self):
+        self._conn.close()
+
+
 def db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    if DATABASE_URL and HAS_PG:
+        return PGConn()
+    return SQLiteConn()
 
 def hash_pw(password, salt=None):
     if salt is None:
@@ -58,120 +156,64 @@ def check_pw(password, stored):
     return hash_pw(password, salt) == stored
 
 # ---------------- INIT DB ----------------
+# Schéma PostgreSQL (timestamps en BIGINT pour les millisecondes).
+SCHEMA_PG = [
+    "CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL, email TEXT, password TEXT NOT NULL, balance_cents INTEGER NOT NULL DEFAULT 0, total_earned_cents INTEGER NOT NULL DEFAULT 0, is_admin INTEGER NOT NULL DEFAULT 0, banned INTEGER NOT NULL DEFAULT 0, created_at BIGINT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS offers (id SERIAL PRIMARY KEY, title TEXT NOT NULL, type TEXT NOT NULL, reward_cents INTEGER NOT NULL, duration_seconds INTEGER DEFAULT 0, description TEXT DEFAULT '', color TEXT DEFAULT '#6366f1', link TEXT DEFAULT '', active INTEGER NOT NULL DEFAULT 1)",
+    "CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at BIGINT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS video_views (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, offer_id INTEGER NOT NULL, completed_at BIGINT NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS ptc_clicks (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, offer_id INTEGER NOT NULL, clicked_at BIGINT NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS survey_answers (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, survey_id INTEGER NOT NULL, answered_at BIGINT NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS bonuses (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, claimed_at BIGINT NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS wheel_spins (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, spun_at BIGINT NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS faucet_claims (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, claimed_at BIGINT NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS game_plays (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, game TEXT NOT NULL, played_at BIGINT NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, kind TEXT NOT NULL, amount_cents INTEGER NOT NULL, label TEXT NOT NULL, created_at BIGINT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS withdrawals (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, amount_cents INTEGER NOT NULL, method TEXT NOT NULL, details TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at BIGINT NOT NULL)",
+]
+
+SCHEMA_SQLITE = [
+    "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, email TEXT, password TEXT NOT NULL, balance_cents INTEGER NOT NULL DEFAULT 0, total_earned_cents INTEGER NOT NULL DEFAULT 0, is_admin INTEGER NOT NULL DEFAULT 0, banned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS offers (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, type TEXT NOT NULL, reward_cents INTEGER NOT NULL, duration_seconds INTEGER DEFAULT 0, description TEXT DEFAULT '', color TEXT DEFAULT '#6366f1', link TEXT DEFAULT '', active INTEGER NOT NULL DEFAULT 1)",
+    "CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS video_views (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, offer_id INTEGER NOT NULL, completed_at INTEGER NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS ptc_clicks (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, offer_id INTEGER NOT NULL, clicked_at INTEGER NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS survey_answers (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, survey_id INTEGER NOT NULL, answered_at INTEGER NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS bonuses (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, claimed_at INTEGER NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS wheel_spins (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, spun_at INTEGER NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS faucet_claims (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, claimed_at INTEGER NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS game_plays (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, game TEXT NOT NULL, played_at INTEGER NOT NULL, reward_cents INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, kind TEXT NOT NULL, amount_cents INTEGER NOT NULL, label TEXT NOT NULL, created_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS withdrawals (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, amount_cents INTEGER NOT NULL, method TEXT NOT NULL, details TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at INTEGER NOT NULL)",
+]
+
+
 def init_db():
     conn = db()
-    c = conn.cursor()
-    c.executescript("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT,
-        password TEXT NOT NULL,
-        balance_cents INTEGER NOT NULL DEFAULT 0,
-        total_earned_cents INTEGER NOT NULL DEFAULT 0,
-        is_admin INTEGER NOT NULL DEFAULT 0,
-        banned INTEGER NOT NULL DEFAULT 0,
-        created_at INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS offers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        type TEXT NOT NULL,               -- video | ptc | survey | cpa
-        reward_cents INTEGER NOT NULL,
-        duration_seconds INTEGER DEFAULT 0,
-        description TEXT DEFAULT '',
-        color TEXT DEFAULT '#6366f1',
-        link TEXT DEFAULT '',
-        active INTEGER NOT NULL DEFAULT 1
-    );
-    CREATE TABLE IF NOT EXISTS sessions (
-        token TEXT PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        created_at INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS video_views (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        offer_id INTEGER NOT NULL,
-        completed_at INTEGER NOT NULL,
-        reward_cents INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS ptc_clicks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        offer_id INTEGER NOT NULL,
-        clicked_at INTEGER NOT NULL,
-        reward_cents INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS survey_answers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        survey_id INTEGER NOT NULL,
-        answered_at INTEGER NOT NULL,
-        reward_cents INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS bonuses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        claimed_at INTEGER NOT NULL,
-        reward_cents INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS wheel_spins (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        spun_at INTEGER NOT NULL,
-        reward_cents INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS faucet_claims (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        claimed_at INTEGER NOT NULL,
-        reward_cents INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS game_plays (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        game TEXT NOT NULL,
-        played_at INTEGER NOT NULL,
-        reward_cents INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        kind TEXT NOT NULL,              -- earn | withdraw
-        amount_cents INTEGER NOT NULL,
-        label TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS withdrawals (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        amount_cents INTEGER NOT NULL,
-        method TEXT NOT NULL,
-        details TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',   -- pending | paid | rejected
-        created_at INTEGER NOT NULL
-    );
-    """)
+    if isinstance(conn, PGConn):
+        schema = SCHEMA_PG
+    else:
+        schema = SCHEMA_SQLITE
+    for stmt in schema:
+        conn.execute(stmt)
     conn.commit()
 
-    # ---- migration : ajout colonne link si absente ----
-    try:
-        conn.execute("ALTER TABLE offers ADD COLUMN link TEXT DEFAULT ''")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
+    # migration ancienne base SQLite : ajout colonne link si absente
+    if not isinstance(conn, PGConn):
+        try:
+            conn.execute("ALTER TABLE offers ADD COLUMN link TEXT DEFAULT ''")
+            conn.commit()
+        except Exception:
+            pass
 
     # ---- seed admin ----
-    c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
-    if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO users(username,email,password,balance_cents,is_admin,created_at) VALUES(?,?,?,?,?,?)",
-                  ("admin", "admin@robinet-euro.fr", hash_pw("Robinet974"), 0, 1, now_ms()))
+    if conn.execute("SELECT COUNT(*) FROM users WHERE username='admin'").fetchone()[0] == 0:
+        conn.execute("INSERT INTO users(username,email,password,balance_cents,is_admin,created_at) VALUES(?,?,?,?,?,?)",
+                     ("admin", "admin@robinet-euro.fr", hash_pw("Robinet974"), 0, 1, now_ms()))
         conn.commit()
 
     # ---- seed offers ----
-    c.execute("SELECT COUNT(*) FROM offers")
-    if c.fetchone()[0] == 0:
+    if conn.execute("SELECT COUNT(*) FROM offers").fetchone()[0] == 0:
         offers = [
             ("Publicité vidéo — Boisson énergisante", "video", 2, 20, "Regarde la pub jusqu'au bout pour gagner 0,02 €.", "#f59e0b"),
             ("Publicité vidéo — Appli de shopping", "video", 3, 25, "Regarde la pub jusqu'au bout pour gagner 0,03 €.", "#6366f1"),
@@ -187,7 +229,7 @@ def init_db():
             ("Offre partenaire — Essaie le service de streaming", "cpa", 200, 0, "Essaie le service partenaire (gratuit) pour gagner 2,00 €.", "#0ea5e9"),
         ]
         for o in offers:
-            c.execute("INSERT INTO offers(title,type,reward_cents,duration_seconds,description,color) VALUES(?,?,?,?,?,?)", o)
+            conn.execute("INSERT INTO offers(title,type,reward_cents,duration_seconds,description,color) VALUES(?,?,?,?,?,?)", o)
         conn.commit()
 
     conn.close()
@@ -254,10 +296,10 @@ def handle_api(conn, path, method, body, token):
         if not re.match(r"^[A-Za-z0-9_.-]+$", username):
             return 400, {"error": "Nom d'utilisateur invalide (lettres, chiffres, _ . -)."}
         try:
-            cur = conn.execute("INSERT INTO users(username,email,password,created_at) VALUES(?,?,?,?)",
+            cur = conn.execute("INSERT INTO users(username,email,password,created_at) VALUES(?,?,?,?) RETURNING id",
                                (username, email, hash_pw(password), now_ms()))
+            uid = cur.fetchone()[0]
             conn.commit()
-            uid = cur.lastrowid
             # bonus de bienvenue
             conn.execute("UPDATE users SET balance_cents=balance_cents+5, total_earned_cents=total_earned_cents+5 WHERE id=?", (uid,))
             add_transaction(conn, uid, "earn", 5, "Bonus de bienvenue")
@@ -266,7 +308,8 @@ def handle_api(conn, path, method, body, token):
             conn.execute("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)", (tok, uid, now_ms()))
             conn.commit()
             return 200, {"token": tok, "message": "Compte créé ! +0,05 € offert."}
-        except sqlite3.IntegrityError:
+        except UNIQUE_ERRORS:
+            conn.rollback()
             return 400, {"error": "Ce nom d'utilisateur est déjà pris."}
 
     if endpoint == "login" and method == "POST":
