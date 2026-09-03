@@ -370,3 +370,9 @@ button{font-family:inherit;cursor:pointer}
   .ad-strip-title{font-size:13px}
   .ad-strip-cta{font-size:11px;padding:6px 12px}
 }
+
+/* ===== MODAL PUB OBLIGATOIRE ===== */
+#ad-gate-modal .modal-box{max-width:440px}
+#ad-gate-modal .btn-primary{width:100%;justify-content:center}
+#adg-go{display:none}
+#adg-status{font-size:13px}
