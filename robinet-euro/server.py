@@ -12,232 +12,40 @@ import hashlib
 import secrets
 import time
 import random
-import math
 import re
 import urllib.parse
-import urllib.request
-import urllib.error
-import threading
-import atexit
-import signal
-import base64
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+# Le dossier de données peut être défini par une variable d'environnement.
+# Sur un hébergeur, pointe DATA_DIR vers un disque persistant pour que la
+# base de données survive aux redéploiements.
+DATA_DIR = os.environ.get("DATA_DIR", BASE)
+DB_PATH = os.path.join(DATA_DIR, "data.db")
 STATIC = os.path.join(BASE, "static")
 PORT = int(os.environ.get("PORT", 8000))
 
-def _pick_db_path():
-    env = os.environ.get("DB_PATH")
-    if env:
-        return env
-    if os.path.isdir("/data"):
-        return "/data/data.db"
-    return os.path.join(BASE, "data.db")
-
-DB_PATH = _pick_db_path()
-GITHUB_BACKUP_REPO = os.environ.get("GITHUB_BACKUP_REPO", "thomasmartialfrancomme-oss/euro-robinet-data")
-GITHUB_BACKUP_FILE = os.environ.get("GITHUB_BACKUP_FILE", "data.db")
-
 # ------- Paramètres -------
-MIN_WITHDRAW_CENTS = 600          # 6,00 €
-DAILY_CAP_CENTS = 600             # 6,00 € / jour (seuil de retrait)
+MIN_WITHDRAW_CENTS = 200          # 2,00 €
+DAILY_CAP_CENTS = 100             # plafond de gain / jour (1,00 € au lieu de 5,00 €)
 VIDEO_COOLDOWN_SEC = 45           # délai entre 2 vidéos
-BONUS_CENTS = 1                   # bonus quotidien (0,01 €)
-INTRO_REWARD_CENTS = 1            # vidéo d'accueil 0,01 € / jour
+BONUS_CENTS = 2                   # bonus quotidien (0,02 €)
 WHEEL_SPINS_PER_DAY = 5
-FAUCET_COOLDOWN_SEC = 30          # toutes les 30 s
-FAUCET_MILLI = 2                  # 0,2 centime = 2/10 de centime (10 = 0,01 €)
-FAUCET_MIN_CENTS = 0
-FAUCET_MAX_CENTS = 0
-GAME_MAX_REWARD_CENTS = 2         # max 0,02 € / partie
-GAME_DAILY_CAP_CENTS = 15         # 0,15 € / jeu / jour
+FAUCET_COOLDOWN_SEC = 90          # recharge du robinet (1 min 30)
+FAUCET_MIN_CENTS = 1              # gain minimum (0,01 €)
+FAUCET_MAX_CENTS = 2              # gain maximum (0,02 €)
+GAME_MAX_REWARD_CENTS = 5         # gain max par partie (0,05 €)
+GAME_DAILY_CAP_CENTS = 50         # plafond par jeu et par jour (0,50 €)
 GAMES = ("clicker", "memory")
 COINFLIP_STAKE_CENTS = 5          # mise du jeu Pile ou Face (0,05 €)
-ALLOWED_STAKES = (2, 5, 10)       # 0,02 / 0,05 / 0,10 €
-STAKE_ROUND_CAP = 40              # parties à mise / jeu / jour
-FUN_KINDS = ("scratch", "chest", "balloon", "quiz")
-FUN_PER_KIND = 8                  # 8 pubs fun / type / jour
-FUN_COOLDOWN_SEC = 20
-CRASH_K = 0.055
-CRASH_MAX = 2.80
-CRASH_ROUND_CAP = 25
-CRASH_DAILY_PROFIT_CAP = 25   # max +0,25 € net / jour sur Express
-CRASH_PAYOUT_CAP_MULT = 2.20  # jamais plus de 2,20x
-MINES_COUNT = 4
-MINES_CELLS = 25
-MINES_ROUND_CAP = 25
-MINES_DAILY_PROFIT_CAP = 25
-MINES_MULT_PCT = [100, 108, 116, 124, 133, 143, 154, 166, 179, 193, 208, 220]
-VIP_PLANS = {"day": (50, 24 * 3600 * 1000), "week": (200, 7 * 24 * 3600 * 1000)}
-ADULT_ADS_NEEDED = 3
-ADULT_REWARD_CENTS = 10           # 0,10 € (10 centimes) après 3 pubs
-ADULT_PER_DAY = 2                 # 2 fois / jour
-ADULT_VIEW_GAP_SEC = 12
-ADULT_VIEW_WINDOW_MS = 20 * 60 * 1000
-CLICK_GAP_MS = 120
-CLICK_CHESTS = (
-    {"id": 1, "need": 20, "reward": 1},
-    {"id": 2, "need": 50, "reward": 1},
-    {"id": 3, "need": 100, "reward": 2},
-)
-GIFT_CARDS = {
-    "amazon-10": {"brand": "Amazon", "cents": 1000, "label": "Carte Amazon 10 €"},
-    "amazon-15": {"brand": "Amazon", "cents": 1500, "label": "Carte Amazon 15 €"},
-    "amazon-25": {"brand": "Amazon", "cents": 2500, "label": "Carte Amazon 25 €"},
-    "google-10": {"brand": "Google Play", "cents": 1000, "label": "Carte Google Play 10 €"},
-    "google-15": {"brand": "Google Play", "cents": 1500, "label": "Carte Google Play 15 €"},
-    "steam-10": {"brand": "Steam", "cents": 1000, "label": "Carte Steam 10 €"},
-    "steam-15": {"brand": "Steam", "cents": 1500, "label": "Carte Steam 15 €"},
-}
 
 def now_ms():
     return int(time.time() * 1000)
 
 def db():
-    os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
     return conn
-
-# ---------------- PERSISTENCE (Render free efface le disque) ----------------
-_backup_lock = threading.Lock()
-_backup_sha = None
-
-def _gh_token():
-    return os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
-
-def _gh_request(method, url, payload=None):
-    token = _gh_token()
-    if not token:
-        return None, None
-    data = None if payload is None else json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, method=method)
-    req.add_header("Authorization", "Bearer " + token)
-    req.add_header("Accept", "application/vnd.github+json")
-    req.add_header("User-Agent", "robinet-euro-backup")
-    req.add_header("X-GitHub-Api-Version", "2022-11-28")
-    if data is not None:
-        req.add_header("Content-Type", "application/json")
-    try:
-        with urllib.request.urlopen(req, timeout=45) as resp:
-            raw = resp.read()
-            return resp.status, json.loads(raw.decode("utf-8")) if raw else {}
-    except urllib.error.HTTPError as e:
-        raw = e.read()
-        try:
-            body = json.loads(raw.decode("utf-8")) if raw else {}
-        except Exception:
-            body = {}
-        return e.code, body
-    except Exception as e:
-        log(f"Backup GitHub erreur réseau : {e}")
-        return None, None
-
-def _checkpoint_db():
-    try:
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        conn.close()
-    except Exception:
-        pass
-
-def restore_db():
-    """Récupère la base sauvegardée avant init (sinon tout est à zéro après un sleep Render)."""
-    global _backup_sha
-    if not _gh_token():
-        log("Pas de GITHUB_TOKEN : pas de restauration (la base sera vide si le disque a été effacé).")
-        return
-    url = f"https://api.github.com/repos/{GITHUB_BACKUP_REPO}/contents/{GITHUB_BACKUP_FILE}"
-    status, body = _gh_request("GET", url + "?ref=main")
-    if status == 404:
-        log("Aucune sauvegarde GitHub pour l'instant.")
-        return
-    if status != 200 or not body or not body.get("content"):
-        log(f"Restauration GitHub impossible (HTTP {status}).")
-        return
-    _backup_sha = body.get("sha")
-    raw = base64.b64decode(body["content"].encode("ascii"))
-    if len(raw) < 100:
-        log("Sauvegarde GitHub trop petite, ignorée.")
-        return
-    os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
-    tmp = DB_PATH + ".restore"
-    with open(tmp, "wb") as f:
-        f.write(raw)
-    os.replace(tmp, DB_PATH)
-    log(f"Base restaurée depuis GitHub ({len(raw)} octets).")
-
-def backup_db(force=False):
-    """Envoie data.db sur un repo GitHub privé."""
-    global _backup_sha
-    token = _gh_token()
-    if not token:
-        return
-    if not os.path.isfile(DB_PATH):
-        return
-    if not _backup_lock.acquire(blocking=force):
-        return
-    try:
-        _checkpoint_db()
-        with open(DB_PATH, "rb") as f:
-            raw = f.read()
-        if len(raw) < 100:
-            return
-        content = base64.b64encode(raw).decode("ascii")
-        url = f"https://api.github.com/repos/{GITHUB_BACKUP_REPO}/contents/{GITHUB_BACKUP_FILE}"
-        payload = {
-            "message": "backup data.db " + time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-            "content": content,
-            "branch": "main",
-        }
-        if _backup_sha:
-            payload["sha"] = _backup_sha
-        status, body = _gh_request("PUT", url, payload)
-        if status in (200, 201) and body and body.get("content"):
-            _backup_sha = body["content"].get("sha")
-            log(f"Base sauvegardée ({len(raw)} octets).")
-        elif status == 409:
-            # sha périmé : relire puis réessayer une fois
-            st2, b2 = _gh_request("GET", url)
-            if st2 == 200 and b2:
-                _backup_sha = b2.get("sha")
-                payload["sha"] = _backup_sha
-                status, body = _gh_request("PUT", url, payload)
-                if status in (200, 201) and body and body.get("content"):
-                    _backup_sha = body["content"].get("sha")
-                    log(f"Base sauvegardée ({len(raw)} octets).")
-        else:
-            log(f"Sauvegarde GitHub HTTP {status} {str(body)[:180] if body else ''}")
-    except Exception as e:
-        log(f"Sauvegarde échouée : {e}")
-    finally:
-        _backup_lock.release()
-
-def _backup_loop():
-    while True:
-        time.sleep(45)
-        try:
-            backup_db(False)
-        except Exception:
-            pass
-
-def start_persistence():
-    restore_db()
-    threading.Timer(8.0, lambda: backup_db(False)).start()
-    t = threading.Thread(target=_backup_loop, daemon=True)
-    t.start()
-    atexit.register(lambda: backup_db(True))
-    def _sig(signum, frame):
-        log("Arrêt : sauvegarde de la base…")
-        backup_db(True)
-        raise SystemExit(0)
-    try:
-        signal.signal(signal.SIGTERM, _sig)
-    except Exception:
-        pass
 
 def hash_pw(password, salt=None):
     if salt is None:
@@ -354,117 +162,6 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS crash_rounds (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        stake_cents INTEGER NOT NULL,
-        crash_at REAL NOT NULL,
-        start_ms INTEGER NOT NULL,
-        status TEXT NOT NULL,
-        cashed_mult REAL,
-        payout_cents INTEGER NOT NULL DEFAULT 0
-    )
-    """)
-    conn.commit()
-
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS mines_rounds (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        stake_cents INTEGER NOT NULL,
-        mines TEXT NOT NULL,
-        revealed TEXT NOT NULL DEFAULT '[]',
-        status TEXT NOT NULL,
-        start_ms INTEGER NOT NULL,
-        payout_cents INTEGER NOT NULL DEFAULT 0
-    )
-    """)
-    conn.commit()
-    try:
-        conn.execute("ALTER TABLE users ADD COLUMN vip_until INTEGER NOT NULL DEFAULT 0")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        conn.execute("ALTER TABLE users ADD COLUMN faucet_milli INTEGER NOT NULL DEFAULT 0")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-    for col, typ in (
-        ("click_n", "INTEGER NOT NULL DEFAULT 0"),
-        ("click_day", "INTEGER NOT NULL DEFAULT 0"),
-        ("click_unlocked", "INTEGER NOT NULL DEFAULT 0"),
-        ("click_opened", "INTEGER NOT NULL DEFAULT 0"),
-        ("click_last", "INTEGER NOT NULL DEFAULT 0"),
-    ):
-        try:
-            conn.execute(f"ALTER TABLE users ADD COLUMN {col} {typ}")
-            conn.commit()
-        except sqlite3.OperationalError:
-            pass
-    # gains trop élevés : on plafonne les offres existantes
-    conn.execute("UPDATE offers SET reward_cents=2 WHERE type='video' AND reward_cents>2")
-    conn.execute("UPDATE offers SET reward_cents=1 WHERE type IN ('ptc','survey') AND reward_cents>1")
-    conn.execute("UPDATE offers SET reward_cents=8 WHERE type='cpa' AND reward_cents>8")
-    conn.commit()
-
-    conn.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)")
-    conn.commit()
-    wipe_key = "wipe_all_users_2026_09_03"
-    if not conn.execute("SELECT v FROM meta WHERE k=?", (wipe_key,)).fetchone():
-        for tbl in (
-            "sessions", "video_views", "ptc_clicks", "survey_answers", "bonuses",
-            "wheel_spins", "faucet_claims", "game_plays", "transactions", "withdrawals",
-            "crash_rounds", "mines_rounds", "users",
-        ):
-            try:
-                conn.execute("DELETE FROM " + tbl)
-            except sqlite3.OperationalError:
-                pass
-        conn.execute("INSERT INTO meta(k, v) VALUES(?, ?)", (wipe_key, "1"))
-        conn.commit()
-        log("Tous les comptes utilisateurs ont été supprimés.")
-
-    robinet_key = "delete_user_robinet_2026_09_03b"
-    if not conn.execute("SELECT v FROM meta WHERE k=?", (robinet_key,)).fetchone():
-        names = ("robinet", "euro-robinet", "robineteuro", "robinet-euro")
-        rows = conn.execute(
-            "SELECT id FROM users WHERE lower(username) IN (?,?,?,?) AND COALESCE(is_admin,0)=0",
-            names,
-        ).fetchall()
-        for r in rows:
-            uid = r["id"]
-            for tbl in (
-                "sessions", "video_views", "ptc_clicks", "survey_answers", "bonuses",
-                "wheel_spins", "faucet_claims", "game_plays", "transactions", "withdrawals",
-                "crash_rounds", "mines_rounds",
-            ):
-                try:
-                    conn.execute("DELETE FROM " + tbl + " WHERE user_id=?", (uid,))
-                except sqlite3.OperationalError:
-                    pass
-            conn.execute("DELETE FROM users WHERE id=?", (uid,))
-        conn.execute("INSERT INTO meta(k, v) VALUES(?, ?)", (robinet_key, "1"))
-        conn.commit()
-        log("Compte robinet supprimé." if rows else "Aucun compte robinet à supprimer.")
-
-    wipe_tout = "wipe_all_users_2026_09_03_tout"
-    if not conn.execute("SELECT v FROM meta WHERE k=?", (wipe_tout,)).fetchone():
-        for tbl in (
-            "sessions", "video_views", "ptc_clicks", "survey_answers", "bonuses",
-            "wheel_spins", "faucet_claims", "game_plays", "transactions", "withdrawals",
-            "crash_rounds", "mines_rounds", "users",
-        ):
-            try:
-                conn.execute("DELETE FROM " + tbl)
-            except sqlite3.OperationalError:
-                pass
-        conn.execute("INSERT INTO meta(k, v) VALUES(?, ?)", (wipe_tout, "1"))
-        conn.commit()
-        log("Tous les comptes utilisateurs ont été supprimés (tout).")
-
     # ---- seed admin ----
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
@@ -534,52 +231,6 @@ def earned_today(conn, user_id):
 def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}")
 
-def crash_mult_from_elapsed(elapsed_sec):
-    return math.exp(CRASH_K * max(0.0, float(elapsed_sec)))
-
-def crash_net_today(conn, uid):
-    day_start = now_ms() - (now_ms() % (86400 * 1000))
-    return conn.execute(
-        "SELECT COALESCE(SUM(reward_cents),0) FROM game_plays WHERE user_id=? AND game='crash' AND played_at>=?",
-        (uid, day_start)).fetchone()[0]
-
-def gen_crash_at(hot=False):
-    # hot = déjà trop gagné aujourd'hui → crash très tôt
-    instant = 0.32 if hot else 0.14
-    if random.random() < instant:
-        return 1.00
-    u = random.random() ** 0.62
-    span = 0.50 if hot else 1.70
-    m = 1.00 + u * span
-    return round(min(max(m, 1.00), CRASH_MAX), 2)
-
-def credit_house(conn, cents, label):
-    if cents <= 0:
-        return
-    adm = conn.execute("SELECT id FROM users WHERE is_admin=1 ORDER BY id ASC LIMIT 1").fetchone()
-    if not adm:
-        return
-    conn.execute(
-        "UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
-        (cents, cents, adm["id"]))
-    add_transaction(conn, adm["id"], "earn", cents, label)
-
-def settle_crash_if_needed(conn, row):
-    """Si le crash est dépassé, marque perdu et verse la mise à l'admin."""
-    if not row or row["status"] != "playing":
-        return row
-    elapsed = (now_ms() - row["start_ms"]) / 1000.0
-    m = crash_mult_from_elapsed(elapsed)
-    if m >= row["crash_at"]:
-        conn.execute("UPDATE crash_rounds SET status='lost', cashed_mult=? WHERE id=?",
-                     (row["crash_at"], row["id"]))
-        credit_house(conn, row["stake_cents"], "Express : mise perdue d'un joueur")
-        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                     (row["user_id"], "crash", now_ms(), -row["stake_cents"]))
-        conn.commit()
-        row = conn.execute("SELECT * FROM crash_rounds WHERE id=?", (row["id"],)).fetchone()
-    return row
-
 # ---------------- HANDLERS ----------------
 def handle_api(conn, path, method, body, token):
     parts = path.strip("/").split("/")
@@ -608,13 +259,13 @@ def handle_api(conn, path, method, body, token):
             conn.commit()
             uid = cur.lastrowid
             # bonus de bienvenue
-            conn.execute("UPDATE users SET balance_cents=balance_cents+1, total_earned_cents=total_earned_cents+1 WHERE id=?", (uid,))
-            add_transaction(conn, uid, "earn", 1, "Bonus de bienvenue")
+            conn.execute("UPDATE users SET balance_cents=balance_cents+5, total_earned_cents=total_earned_cents+5 WHERE id=?", (uid,))
+            add_transaction(conn, uid, "earn", 5, "Bonus de bienvenue")
             conn.commit()
             tok = secrets.token_hex(24)
             conn.execute("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)", (tok, uid, now_ms()))
             conn.commit()
-            return 200, {"token": tok, "message": "Compte créé ! +0,01 € offert."}
+            return 200, {"token": tok, "message": "Compte créé ! +0,05 € offert."}
         except sqlite3.IntegrityError:
             return 400, {"error": "Ce nom d'utilisateur est déjà pris."}
 
@@ -683,7 +334,7 @@ def handle_api(conn, path, method, body, token):
             wait = VIDEO_COOLDOWN_SEC - (now_ms() - last["completed_at"]) // 1000
             return 429, {"error": f"Attends encore {int(wait)} s avant une nouvelle vidéo."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Le retrait est à 6,00 € : reviens demain pour continuer."}
+            return 429, {"error": "Plafond journalier atteint (5,00 €). Reviens demain !"}
         reward = o["reward_cents"]
         conn.execute("INSERT INTO video_views(user_id,offer_id,completed_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], o["id"], now_ms(), reward))
@@ -707,7 +358,7 @@ def handle_api(conn, path, method, body, token):
         if last and (now_ms() - last["clicked_at"]) < day_ms:
             return 429, {"error": "Tu as déjà fait ce clic aujourd'hui."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
+            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
         reward = o["reward_cents"]
         conn.execute("INSERT INTO ptc_clicks(user_id,offer_id,clicked_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], o["id"], now_ms(), reward))
@@ -730,7 +381,7 @@ def handle_api(conn, path, method, body, token):
         if last:
             return 429, {"error": "Tu as déjà répondu à ce sondage."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
+            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
         reward = o["reward_cents"]
         conn.execute("INSERT INTO survey_answers(user_id,survey_id,answered_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], o["id"], now_ms(), reward))
@@ -757,27 +408,6 @@ def handle_api(conn, path, method, body, token):
         conn.commit()
         return 200, {"reward": reward, "balance": balance(conn, u["id"])}
 
-    if endpoint == "claim_intro" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
-        day_start = now_ms() - (now_ms() % (86400 * 1000))
-        n = conn.execute(
-            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
-            (u["id"], "intro", day_start)).fetchone()[0]
-        if n >= 1:
-            return 429, {"error": "Vidéo d'accueil déjà vue aujourd'hui."}
-        reward = INTRO_REWARD_CENTS
-        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                     (u["id"], "intro", now_ms(), reward))
-        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
-                     (reward, reward, u["id"]))
-        add_transaction(conn, u["id"], "earn", reward, "Vidéo d'accueil")
-        conn.commit()
-        return 200, {"reward": reward, "balance": balance(conn, u["id"])}
-
     if endpoint == "spin_wheel" and method == "POST":
         u = require_auth(conn, token)
         if not u:
@@ -788,8 +418,8 @@ def handle_api(conn, path, method, body, token):
         if spins >= WHEEL_SPINS_PER_DAY:
             return 429, {"error": f"Plus que {WHEEL_SPINS_PER_DAY} tours par jour."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
-        rewards = [0, 0, 1, 0, 1, 2, 0, 1, 0, 0, 1, 0]  # max 0,02 €
+            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
+        rewards = [0, 1, 2, 1, 3, 5, 1, 2, 1, 2, 1, 3]  # en cents (max 0,05 €)
         reward = random.choice(rewards)
         conn.execute("INSERT INTO wheel_spins(user_id,spun_at,reward_cents) VALUES(?,?,?)", (u["id"], now_ms(), reward))
         if reward > 0:
@@ -809,178 +439,15 @@ def handle_api(conn, path, method, body, token):
             wait = FAUCET_COOLDOWN_SEC - (now_ms() - last["claimed_at"]) // 1000
             return 429, {"error": f"Le robinet se recharge. Réessaie dans {fmt_wait(wait)}."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Le retrait est à 6,00 € : reviens demain pour continuer."}
-        try:
-            milli = int(u["faucet_milli"] or 0)
-        except Exception:
-            milli = 0
-        milli += FAUCET_MILLI
-        cents = milli // 10
-        milli = milli % 10
-        conn.execute("UPDATE users SET faucet_milli=? WHERE id=?", (milli, u["id"]))
+            return 429, {"error": "Plafond journalier atteint (5,00 €). Reviens demain !"}
+        reward = random.randint(FAUCET_MIN_CENTS, FAUCET_MAX_CENTS)
         conn.execute("INSERT INTO faucet_claims(user_id,claimed_at,reward_cents) VALUES(?,?,?)",
-                     (u["id"], now_ms(), cents))
-        if cents > 0:
-            conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
-                         (cents, cents, u["id"]))
-            add_transaction(conn, u["id"], "earn", cents, "Robinet €")
-        else:
-            add_transaction(conn, u["id"], "earn", 0, "Robinet € (+0,002 €, en cours)")
-        conn.commit()
-        return 200, {"reward": cents, "milli": FAUCET_MILLI, "pending_milli": milli,
-                     "balance": balance(conn, u["id"]), "cooldown": FAUCET_COOLDOWN_SEC}
-
-    if endpoint == "claim_fun" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        kind = body.get("kind")
-        if kind not in FUN_KINDS:
-            return 400, {"error": "Jeu fun inconnu."}
-        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": "Plafond journalier atteint. Reviens demain !"}
-        day_start = now_ms() - (now_ms() % (86400 * 1000))
-        n = conn.execute(
-            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
-            (u["id"], "fun-" + kind, day_start)).fetchone()[0]
-        if n >= FUN_PER_KIND:
-            return 429, {"error": "Tu as déjà trop joué à ça aujourd'hui. Reviens demain !"}
-        last = conn.execute(
-            "SELECT played_at FROM game_plays WHERE user_id=? AND game LIKE 'fun-%' ORDER BY played_at DESC LIMIT 1",
-            (u["id"],)).fetchone()
-        if last and (now_ms() - last["played_at"]) < FUN_COOLDOWN_SEC * 1000:
-            wait = FUN_COOLDOWN_SEC - (now_ms() - last["played_at"]) // 1000
-            return 429, {"error": f"Encore un peu… réessaie dans {wait} s."}
-        reward = 2 if random.random() < 0.12 else 1
-        names = {"scratch": "Carte à gratter", "chest": "Coffre mystère", "balloon": "Bulles d'or", "quiz": "Quiz fun"}
-        label = names.get(kind, "Fun")
-        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                     (u["id"], "fun-" + kind, now_ms(), reward))
+                     (u["id"], now_ms(), reward))
         conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
                      (reward, reward, u["id"]))
-        add_transaction(conn, u["id"], "earn", reward, label)
+        add_transaction(conn, u["id"], "earn", reward, "Robinet €")
         conn.commit()
-        return 200, {"reward": reward, "balance": balance(conn, u["id"]), "left": FUN_PER_KIND - n - 1}
-
-    if endpoint == "adult_view" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
-        day_start = now_ms() - (now_ms() % (86400 * 1000))
-        claims_today = conn.execute(
-            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
-            (u["id"], "adult18", day_start)).fetchone()[0]
-        if claims_today >= ADULT_PER_DAY:
-            return 429, {"error": "Rubrique −18 : déjà utilisée aujourd'hui. Reviens demain."}
-        last = conn.execute(
-            "SELECT played_at FROM game_plays WHERE user_id=? AND game='adult-view' ORDER BY played_at DESC LIMIT 1",
-            (u["id"],)).fetchone()
-        if last and (now_ms() - last["played_at"]) < ADULT_VIEW_GAP_SEC * 1000:
-            wait = ADULT_VIEW_GAP_SEC - (now_ms() - last["played_at"]) // 1000
-            return 429, {"error": f"Patiente encore {wait} s sur la pub."}
-        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                     (u["id"], "adult-view", now_ms(), 0))
-        conn.commit()
-        info = adult_progress(conn, u["id"])
-        return 200, info
-
-    if endpoint == "adult_claim" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
-        info = adult_progress(conn, u["id"])
-        if info["left_today"] <= 0:
-            return 429, {"error": "Rubrique −18 : déjà utilisée aujourd'hui. Reviens demain."}
-        if info["views"] < ADULT_ADS_NEEDED:
-            return 400, {"error": f"Regarde encore {ADULT_ADS_NEEDED - info['views']} pub(s) −18."}
-        reward = ADULT_REWARD_CENTS
-        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                     (u["id"], "adult18", now_ms(), reward))
-        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
-                     (reward, reward, u["id"]))
-        add_transaction(conn, u["id"], "earn", reward, "−18 : 3 pubs")
-        conn.commit()
-        info = adult_progress(conn, u["id"])
-        return 200, {"reward": reward, "balance": balance(conn, u["id"]), **info}
-
-    if endpoint == "click_tap" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        st = click_state(conn, u)
-        now = now_ms()
-        if st["last"] and (now - st["last"]) < CLICK_GAP_MS:
-            return 200, click_payload(st)
-        st["n"] += 1
-        st["last"] = now
-        save_click_state(conn, u["id"], st)
-        conn.commit()
-        return 200, click_payload(st)
-
-    if endpoint == "click_unlock" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        chest = next((c for c in CLICK_CHESTS if c["id"] == int(body.get("chest") or 0)), None)
-        if not chest:
-            return 400, {"error": "Coffre inconnu."}
-        st = click_state(conn, u)
-        bit = 1 << (chest["id"] - 1)
-        if st["n"] < chest["need"]:
-            return 400, {"error": f"Encore {chest['need'] - st['n']} clics pour ce coffre."}
-        if st["unlocked"] & bit:
-            return 200, click_payload(st)
-        last = conn.execute(
-            "SELECT played_at FROM game_plays WHERE user_id=? AND game LIKE 'click-ad%' ORDER BY played_at DESC LIMIT 1",
-            (u["id"],)).fetchone()
-        if last and (now_ms() - last["played_at"]) < ADULT_VIEW_GAP_SEC * 1000:
-            wait = ADULT_VIEW_GAP_SEC - (now_ms() - last["played_at"]) // 1000
-            return 429, {"error": f"Patiente encore {wait} s sur la pub −18."}
-        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                     (u["id"], "click-ad-unlock", now_ms(), 0))
-        st["unlocked"] |= bit
-        save_click_state(conn, u["id"], st)
-        conn.commit()
-        return 200, click_payload(st)
-
-    if endpoint == "click_open" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
-        chest = next((c for c in CLICK_CHESTS if c["id"] == int(body.get("chest") or 0)), None)
-        if not chest:
-            return 400, {"error": "Coffre inconnu."}
-        st = click_state(conn, u)
-        bit = 1 << (chest["id"] - 1)
-        if not (st["unlocked"] & bit):
-            return 400, {"error": "Débloque d'abord ce coffre (pub −18)."}
-        if st["opened"] & bit:
-            return 400, {"error": "Coffre déjà ouvert aujourd'hui."}
-        last = conn.execute(
-            "SELECT played_at FROM game_plays WHERE user_id=? AND game LIKE 'click-ad%' ORDER BY played_at DESC LIMIT 1",
-            (u["id"],)).fetchone()
-        if last and (now_ms() - last["played_at"]) < ADULT_VIEW_GAP_SEC * 1000:
-            wait = ADULT_VIEW_GAP_SEC - (now_ms() - last["played_at"]) // 1000
-            return 429, {"error": f"Patiente encore {wait} s sur la pub −18."}
-        reward = int(chest["reward"])
-        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                     (u["id"], "click-ad-open", now_ms(), reward))
-        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
-                     (reward, reward, u["id"]))
-        add_transaction(conn, u["id"], "earn", reward, f"Coffre clics #{chest['id']}")
-        st["opened"] |= bit
-        save_click_state(conn, u["id"], st)
-        conn.commit()
-        out = click_payload(st)
-        out["reward"] = reward
-        out["balance"] = balance(conn, u["id"])
-        return 200, out
+        return 200, {"reward": reward, "balance": balance(conn, u["id"]), "cooldown": FAUCET_COOLDOWN_SEC}
 
     if endpoint == "play_game" and method == "POST":
         u = require_auth(conn, token)
@@ -998,7 +465,7 @@ def handle_api(conn, path, method, body, token):
         if remaining <= 0:
             return 429, {"error": f"Plafond du jeu atteint pour aujourd'hui. Reviens demain !"}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
+            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
         reward = min(score, remaining)
         conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], game, now_ms(), reward))
@@ -1028,341 +495,8 @@ def handle_api(conn, path, method, body, token):
         else:
             conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (stake, u["id"]))
             add_transaction(conn, u["id"], "earn", -stake, "Pile ou Face (perdu)")
-
         conn.commit()
         return 200, {"won": won, "actual": actual, "stake": stake, "balance": balance(conn, u["id"])}
-
-
-    if endpoint == "crash_start" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        try:
-            stake = int(body.get("stake_cents") or 0)
-        except (TypeError, ValueError):
-            stake = 0
-        if stake not in ALLOWED_STAKES:
-            return 400, {"error": "Mise invalide (0,02 / 0,05 / 0,10 €)."}
-        if u["balance_cents"] < stake:
-            return 400, {"error": f"Solde insuffisant : il faut {cents_to_str(stake)} €."}
-        day_start = now_ms() - (now_ms() % (86400 * 1000))
-        nplays = conn.execute(
-            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
-            (u["id"], "crash", day_start)).fetchone()[0]
-        if nplays >= CRASH_ROUND_CAP:
-            return 429, {"error": "Limite Express atteinte pour aujourd'hui."}
-        # clôturer une partie restante
-        leftover = conn.execute(
-            "SELECT * FROM crash_rounds WHERE user_id=? AND status='playing' ORDER BY id DESC LIMIT 1",
-            (u["id"],)).fetchone()
-        if leftover:
-            settle_crash_if_needed(conn, leftover)
-            leftover = conn.execute("SELECT * FROM crash_rounds WHERE id=?", (leftover["id"],)).fetchone()
-            if leftover and leftover["status"] == "playing":
-                conn.execute("UPDATE crash_rounds SET status='lost', cashed_mult=? WHERE id=?",
-                             (leftover["crash_at"], leftover["id"]))
-                credit_house(conn, leftover["stake_cents"], "Express : mise perdue d'un joueur")
-                conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                             (u["id"], "crash", now_ms(), -leftover["stake_cents"]))
-        hot = crash_net_today(conn, u["id"]) >= CRASH_DAILY_PROFIT_CAP
-        crash_at = gen_crash_at(hot=hot)
-        conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (stake, u["id"]))
-        add_transaction(conn, u["id"], "earn", -stake, "Express (mise)")
-        cur = conn.execute(
-            "INSERT INTO crash_rounds(user_id,stake_cents,crash_at,start_ms,status) VALUES(?,?,?,?, 'playing')",
-            (u["id"], stake, crash_at, now_ms()))
-        conn.commit()
-        return 200, {"id": cur.lastrowid, "stake": stake, "k": CRASH_K, "max": CRASH_MAX,
-                     "balance": balance(conn, u["id"])}
-
-    if endpoint == "crash_status" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        rid = int(body.get("id") or 0)
-        row = conn.execute("SELECT * FROM crash_rounds WHERE id=? AND user_id=?", (rid, u["id"])).fetchone()
-        if not row:
-            return 404, {"error": "Partie introuvable."}
-        row = settle_crash_if_needed(conn, row)
-        elapsed = (now_ms() - row["start_ms"]) / 1000.0
-        shown = min(crash_mult_from_elapsed(elapsed), CRASH_MAX)
-        if row["status"] == "lost":
-            return 200, {"status": "lost", "crash_at": row["crash_at"], "stake": row["stake_cents"],
-                         "balance": balance(conn, u["id"])}
-        if row["status"] == "won":
-            return 200, {"status": "won", "at": row["cashed_mult"], "payout": row["payout_cents"],
-                         "stake": row["stake_cents"], "balance": balance(conn, u["id"])}
-        return 200, {"status": "playing", "multiplier": round(shown, 2), "stake": row["stake_cents"]}
-
-    if endpoint == "crash_cashout" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        rid = int(body.get("id") or 0)
-        row = conn.execute("SELECT * FROM crash_rounds WHERE id=? AND user_id=?", (rid, u["id"])).fetchone()
-        if not row:
-            return 404, {"error": "Partie introuvable."}
-        row = settle_crash_if_needed(conn, row)
-        if row["status"] == "lost":
-            return 200, {"status": "lost", "crash_at": row["crash_at"], "stake": row["stake_cents"],
-                         "balance": balance(conn, u["id"])}
-        if row["status"] != "playing":
-            return 400, {"error": "Cette partie est déjà terminée."}
-        elapsed = (now_ms() - row["start_ms"]) / 1000.0
-        at = round(min(crash_mult_from_elapsed(elapsed), CRASH_MAX), 2)
-        if at >= row["crash_at"]:
-            conn.execute("UPDATE crash_rounds SET status='lost', cashed_mult=? WHERE id=?",
-                         (row["crash_at"], row["id"]))
-            credit_house(conn, row["stake_cents"], "Express : mise perdue d'un joueur")
-            conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                         (u["id"], "crash", now_ms(), -row["stake_cents"]))
-            conn.commit()
-            return 200, {"status": "lost", "crash_at": row["crash_at"], "stake": row["stake_cents"],
-                         "balance": balance(conn, u["id"])}
-        at_pay = min(at, CRASH_PAYOUT_CAP_MULT)
-        payout = int(round(row["stake_cents"] * at_pay))
-        net = crash_net_today(conn, u["id"])
-        profit = payout - row["stake_cents"]
-        if net + profit > CRASH_DAILY_PROFIT_CAP:
-            payout = row["stake_cents"] + max(0, CRASH_DAILY_PROFIT_CAP - net)
-            at_pay = round(payout / max(1, row["stake_cents"]), 2)
-        if payout < 1:
-            payout = row["stake_cents"]
-        conn.execute("UPDATE crash_rounds SET status='won', cashed_mult=?, payout_cents=? WHERE id=?",
-                     (at_pay, payout, row["id"]))
-        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
-                     (payout, max(0, payout - row["stake_cents"]), u["id"]))
-        add_transaction(conn, u["id"], "earn", payout, f"Express retiré à {at_pay:.2f}x")
-        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                     (u["id"], "crash", now_ms(), payout - row["stake_cents"]))
-        conn.commit()
-        return 200, {"status": "won", "at": at_pay, "payout": payout, "stake": row["stake_cents"],
-                     "balance": balance(conn, u["id"])}
-
-
-    if endpoint == "mines_start" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        try:
-            stake = int(body.get("stake_cents") or 0)
-        except (TypeError, ValueError):
-            stake = 0
-        if stake not in ALLOWED_STAKES:
-            return 400, {"error": "Mise invalide (0,02 / 0,05 / 0,10 €)."}
-        if u["balance_cents"] < stake:
-            return 400, {"error": f"Solde insuffisant : il faut {cents_to_str(stake)} €."}
-        day_start = now_ms() - (now_ms() % (86400 * 1000))
-        nplays = conn.execute(
-            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
-            (u["id"], "mines", day_start)).fetchone()[0]
-        if nplays >= MINES_ROUND_CAP:
-            return 429, {"error": "Limite Mines atteinte pour aujourd'hui."}
-        leftover = conn.execute(
-            "SELECT * FROM mines_rounds WHERE user_id=? AND status='playing' ORDER BY id DESC LIMIT 1",
-            (u["id"],)).fetchone()
-        if leftover:
-            conn.execute("UPDATE mines_rounds SET status='lost' WHERE id=?", (leftover["id"],))
-            credit_house(conn, leftover["stake_cents"], "Mines : mise perdue d'un joueur")
-            conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                         (u["id"], "mines", now_ms(), -leftover["stake_cents"]))
-        mines = sorted(random.sample(range(MINES_CELLS), MINES_COUNT))
-        conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (stake, u["id"]))
-        add_transaction(conn, u["id"], "earn", -stake, "Mines (mise)")
-        cur = conn.execute(
-            "INSERT INTO mines_rounds(user_id,stake_cents,mines,revealed,status,start_ms) VALUES(?,?,?,?, 'playing', ?)",
-            (u["id"], stake, json.dumps(mines), "[]", now_ms()))
-        conn.commit()
-        return 200, {"id": cur.lastrowid, "stake": stake, "cells": MINES_CELLS, "mines_count": MINES_COUNT,
-                     "multiplier": 1.0, "balance": balance(conn, u["id"])}
-
-    if endpoint == "mines_reveal" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        rid = int(body.get("id") or 0)
-        try:
-            tile = int(body.get("tile"))
-        except (TypeError, ValueError):
-            return 400, {"error": "Case invalide."}
-        if tile < 0 or tile >= MINES_CELLS:
-            return 400, {"error": "Case invalide."}
-        row = conn.execute("SELECT * FROM mines_rounds WHERE id=? AND user_id=?", (rid, u["id"])).fetchone()
-        if not row or row["status"] != "playing":
-            return 400, {"error": "Partie introuvable ou terminée."}
-        mines = json.loads(row["mines"])
-        revealed = json.loads(row["revealed"] or "[]")
-        if tile in revealed:
-            return 400, {"error": "Case déjà ouverte."}
-        if tile in mines:
-            conn.execute("UPDATE mines_rounds SET status='lost', revealed=? WHERE id=?",
-                         (json.dumps(revealed + [tile]), rid))
-            credit_house(conn, row["stake_cents"], "Mines : mise perdue d'un joueur")
-            conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                         (u["id"], "mines", now_ms(), -row["stake_cents"]))
-            conn.commit()
-            return 200, {"status": "lost", "tile": tile, "boom": True, "mines": mines,
-                         "revealed": revealed + [tile], "stake": row["stake_cents"],
-                         "balance": balance(conn, u["id"])}
-        revealed.append(tile)
-        gems = len(revealed)
-        pct = mines_mult_pct(gems)
-        conn.execute("UPDATE mines_rounds SET revealed=? WHERE id=?", (json.dumps(revealed), rid))
-        conn.commit()
-        return 200, {"status": "playing", "tile": tile, "gem": True, "revealed": revealed,
-                     "gems": gems, "multiplier": round(pct / 100.0, 2),
-                     "payout": int(round(row["stake_cents"] * pct / 100.0))}
-
-    if endpoint == "mines_cashout" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        rid = int(body.get("id") or 0)
-        row = conn.execute("SELECT * FROM mines_rounds WHERE id=? AND user_id=?", (rid, u["id"])).fetchone()
-        if not row or row["status"] != "playing":
-            return 400, {"error": "Partie introuvable ou terminée."}
-        revealed = json.loads(row["revealed"] or "[]")
-        mines = json.loads(row["mines"])
-        gems = len(revealed)
-        if gems < 1:
-            return 400, {"error": "Ouvre au moins une case avant de retirer."}
-        pct = mines_mult_pct(gems)
-        payout = int(round(row["stake_cents"] * pct / 100.0))
-        day_start = now_ms() - (now_ms() % (86400 * 1000))
-        net = conn.execute(
-            "SELECT COALESCE(SUM(reward_cents),0) FROM game_plays WHERE user_id=? AND game='mines' AND played_at>=?",
-            (u["id"], day_start)).fetchone()[0]
-        profit = payout - row["stake_cents"]
-        if net + profit > MINES_DAILY_PROFIT_CAP:
-            payout = row["stake_cents"] + max(0, MINES_DAILY_PROFIT_CAP - net)
-        conn.execute("UPDATE mines_rounds SET status='won', payout_cents=? WHERE id=?", (payout, rid))
-        conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
-                     (payout, max(0, payout - row["stake_cents"]), u["id"]))
-        add_transaction(conn, u["id"], "earn", payout, f"Mines retiré ({gems} gemmes)")
-        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                     (u["id"], "mines", now_ms(), payout - row["stake_cents"]))
-        conn.commit()
-        return 200, {"status": "won", "payout": payout, "gems": gems, "mines": mines,
-                     "multiplier": round(payout / max(1, row["stake_cents"]), 2),
-                     "stake": row["stake_cents"], "balance": balance(conn, u["id"])}
-
-    if endpoint == "buy_vip" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        plan = body.get("plan")
-        if plan not in VIP_PLANS:
-            return 400, {"error": "Choisis 24 h ou 7 jours."}
-        price, dur = VIP_PLANS[plan]
-        if u["balance_cents"] < price:
-            return 400, {"error": f"Solde insuffisant : {cents_to_str(price)} €."}
-        conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (price, u["id"]))
-        add_transaction(conn, u["id"], "withdraw", -price, "Pass sans pub (" + plan + ")")
-        credit_house(conn, price, "Pass sans pub vendu")
-        base = max(now_ms(), user_vip_until(u))
-        until = base + dur
-        conn.execute("UPDATE users SET vip_until=? WHERE id=?", (until, u["id"]))
-        conn.commit()
-        return 200, {"ok": True, "vip_until": until, "balance": balance(conn, u["id"]),
-                     "message": "Sans pub activé !"}
-
-    if endpoint == "play_stake" and method == "POST":
-        u = require_auth(conn, token)
-        if not u:
-            return 401, {"error": "Non connecté."}
-        game = body.get("game")
-        choice = body.get("choice")
-        try:
-            stake = int(body.get("stake_cents") or 0)
-        except (TypeError, ValueError):
-            stake = 0
-        if stake not in ALLOWED_STAKES:
-            return 400, {"error": "Mise invalide (0,02 / 0,05 / 0,10 €)."}
-        if u["balance_cents"] < stake:
-            return 400, {"error": f"Solde insuffisant : il faut {cents_to_str(stake)} €."}
-        day_start = now_ms() - (now_ms() % (86400 * 1000))
-        nplays = conn.execute(
-            "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
-            (u["id"], game, day_start)).fetchone()[0]
-        if nplays >= STAKE_ROUND_CAP:
-            return 429, {"error": "Limite de parties atteinte pour ce jeu aujourd'hui."}
-
-        net = 0
-        won = False
-        draw = False
-        actual = None
-        extra = {}
-        label = "Jeu à mise"
-
-        if game == "dice":
-            if choice not in ("even", "odd"):
-                return 400, {"error": "Choisis pair ou impair."}
-            actual = random.randint(1, 6)
-            is_even = actual % 2 == 0
-            won = (choice == "even" and is_even) or (choice == "odd" and not is_even)
-            net = stake if won else -stake
-            label = "Dé (gagné)" if won else "Dé (perdu)"
-        elif game == "rps":
-            opts = ("pierre", "feuille", "ciseaux")
-            if choice not in opts:
-                return 400, {"error": "Choisis pierre, feuille ou ciseaux."}
-            actual = random.choice(opts)
-            beats = {"pierre": "ciseaux", "feuille": "pierre", "ciseaux": "feuille"}
-            if choice == actual:
-                draw = True
-                net = 0
-                label = "Chifoumi (égalité)"
-            else:
-                won = beats[choice] == actual
-                net = stake if won else -stake
-                label = "Chifoumi (gagné)" if won else "Chifoumi (perdu)"
-        elif game == "slots":
-            symbols = ["🍒", "🍋", "🍇", "🔔", "⭐", "7️⃣"]
-            reels = [random.choice(symbols) for _ in range(3)]
-            extra["reels"] = reels
-            extra["kind"] = "lose"
-            if reels[0] == reels[1] == reels[2]:
-                won = True
-                if reels[0] == "7️⃣":
-                    net = 5 * stake
-                    extra["kind"] = "jackpot"
-                    label = "Machine à sous (jackpot)"
-                else:
-                    net = 3 * stake
-                    extra["kind"] = "triple"
-                    label = "Machine à sous (triple)"
-            elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
-                won = True
-                net = stake
-                extra["kind"] = "double"
-                label = "Machine à sous (paire)"
-            else:
-                net = -stake
-                label = "Machine à sous (perdu)"
-            actual = "".join(reels)
-        elif game == "color":
-            if choice not in ("rouge", "noir"):
-                return 400, {"error": "Choisis rouge ou noir."}
-            actual = random.choice(["rouge", "noir"])
-            won = choice == actual
-            net = stake if won else -stake
-            label = "Rouge/Noir (gagné)" if won else "Rouge/Noir (perdu)"
-        else:
-            return 404, {"error": "Jeu inconnu."}
-
-        if net > 0:
-            conn.execute("UPDATE users SET balance_cents=balance_cents+?, total_earned_cents=total_earned_cents+? WHERE id=?",
-                         (net, net, u["id"]))
-        elif net < 0:
-            conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (-net, u["id"]))
-        add_transaction(conn, u["id"], "earn", net, label)
-        conn.execute("INSERT INTO game_plays(user_id,game,played_at,reward_cents) VALUES(?,?,?,?)",
-                     (u["id"], game, now_ms(), net))
-        conn.commit()
-        payload = {"won": won, "draw": draw, "actual": actual, "stake": stake, "payout": net,
-                   "balance": balance(conn, u["id"])}
-        payload.update(extra)
-        return 200, payload
 
     if endpoint == "complete_cpa" and method == "POST":
         u = require_auth(conn, token)
@@ -1377,7 +511,7 @@ def handle_api(conn, path, method, body, token):
         if last:
             return 429, {"error": "Tu as déjà fait cette offre."}
         if earned_today(conn, u["id"]) >= DAILY_CAP_CENTS:
-            return 429, {"error": f"Plafond du jour atteint ({cents_to_str(DAILY_CAP_CENTS)} €). Reviens demain."}
+            return 429, {"error": "Plafond journalier atteint (5,00 €)."}
         reward = o["reward_cents"]
         conn.execute("INSERT INTO ptc_clicks(user_id,offer_id,clicked_at,reward_cents) VALUES(?,?,?,?)",
                      (u["id"], o["id"], now_ms(), reward))
@@ -1402,33 +536,20 @@ def handle_api(conn, path, method, body, token):
         method = body.get("method")
         details = (body.get("details") or "").strip()
         amount = int(body.get("amount_cents") or 0)
-        if method == "carte":
-            return 400, {"error": "Les cartes cadeaux arrivent bientôt. Pas encore disponibles."}
-            gift = GIFT_CARDS.get(body.get("gift_id") or "")
-            if not gift:
-                return 400, {"error": "Carte cadeau inconnue."}
-            amount = int(gift["cents"])
-            email = details
-            if "@" not in email or "." not in email:
-                return 400, {"error": "Indique un e-mail valide pour recevoir le code."}
-            details = gift["label"] + " | " + email
-            method = "carte"
         if amount < MIN_WITHDRAW_CENTS:
-            return 400, {"error": f"Le retrait minimum est de 6,00 € (tu as demandé {cents_to_str(amount)} €)."}
+            return 400, {"error": f"Le retrait minimum est de 2,00 € (tu as demandé {cents_to_str(amount)} €)."}
         if amount > u["balance_cents"]:
             return 400, {"error": "Solde insuffisant."}
-        if method not in ("paypal", "virement", "crypto", "carte", "lydia", "revolut", "payeer"):
+        if method not in ("paypal", "virement", "crypto"):
             return 400, {"error": "Méthode de paiement invalide."}
         if not details:
             return 400, {"error": "Merci d'indiquer tes coordonnées de paiement."}
         conn.execute("UPDATE users SET balance_cents=balance_cents-? WHERE id=?", (amount, u["id"]))
         conn.execute("INSERT INTO withdrawals(user_id,amount_cents,method,details,status,created_at) VALUES(?,?,?,?,?,?)",
                      (u["id"], amount, method, details, "pending", now_ms()))
-        label = details.split(" | ")[0] if method == "carte" else f"Retrait ({method})"
-        add_transaction(conn, u["id"], "withdraw", -amount, label)
+        add_transaction(conn, u["id"], "withdraw", -amount, f"Retrait ({method})")
         conn.commit()
-        msg = "Demande de carte cadeau envoyée ! Tu recevras le code par e-mail après validation." if method == "carte" else "Demande de retrait envoyée !"
-        return 200, {"balance": balance(conn, u["id"]), "message": msg}
+        return 200, {"balance": balance(conn, u["id"]), "message": "Demande de retrait envoyée !"}
 
     # ---- ADMIN ----
     if endpoint.startswith("admin"):
@@ -1495,18 +616,6 @@ def handle_admin(conn, parts, method, body):
         conn.commit()
         return 200, {"ok": True}
 
-    if sub == "user_vip" and method == "POST":
-        uid = body.get("id")
-        days = int(body.get("days") or 7)
-        u = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
-        if not u:
-            return 404, {"error": "Utilisateur introuvable."}
-        base = max(now_ms(), user_vip_until(u))
-        until = base + days * 24 * 3600 * 1000
-        conn.execute("UPDATE users SET vip_until=? WHERE id=?", (until, uid))
-        conn.commit()
-        return 200, {"ok": True, "vip_until": until}
-
     if sub == "offer_create" and method == "POST":
         title = body.get("title")
         type_ = body.get("type")
@@ -1544,85 +653,8 @@ def handle_admin(conn, parts, method, body):
 def balance(conn, uid):
     return conn.execute("SELECT balance_cents FROM users WHERE id=?", (uid,)).fetchone()[0]
 
-def user_vip_until(u):
-    try:
-        return int(u["vip_until"] or 0)
-    except Exception:
-        return 0
-
-def user_is_vip(u):
-    return user_vip_until(u) > now_ms()
-
-def mines_mult_pct(gems):
-    if gems < 0:
-        return 100
-    if gems >= len(MINES_MULT_PCT):
-        return MINES_MULT_PCT[-1]
-    return MINES_MULT_PCT[gems]
-
-def day_start_ms():
-    return now_ms() - (now_ms() % (86400 * 1000))
-
-def click_state(conn, u):
-    day = day_start_ms()
-    try:
-        n = int(u["click_n"] or 0)
-        d = int(u["click_day"] or 0)
-        un = int(u["click_unlocked"] or 0)
-        op = int(u["click_opened"] or 0)
-        last = int(u["click_last"] or 0)
-    except Exception:
-        n, d, un, op, last = 0, 0, 0, 0, 0
-    if d != day:
-        n, un, op, last, d = 0, 0, 0, 0, day
-        save_click_state(conn, u["id"], {"n": 0, "unlocked": 0, "opened": 0, "last": 0, "day": day})
-        conn.commit()
-    return {"n": n, "unlocked": un, "opened": op, "last": last, "day": d}
-
-def save_click_state(conn, uid, st):
-    conn.execute(
-        "UPDATE users SET click_n=?, click_day=?, click_unlocked=?, click_opened=?, click_last=? WHERE id=?",
-        (st["n"], st.get("day", day_start_ms()), st["unlocked"], st["opened"], st["last"], uid))
-
-def click_payload(st):
-    chests = []
-    for c in CLICK_CHESTS:
-        bit = 1 << (c["id"] - 1)
-        chests.append({
-            "id": c["id"], "need": c["need"], "reward": c["reward"],
-            "unlocked": bool(st["unlocked"] & bit),
-            "opened": bool(st["opened"] & bit),
-            "ready": st["n"] >= c["need"],
-        })
-    return {"clicks": st["n"], "chests": chests}
-
-def adult_progress(conn, uid):
-    day_start = now_ms() - (now_ms() % (86400 * 1000))
-    claims_today = conn.execute(
-        "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game=? AND played_at>=?",
-        (uid, "adult18", day_start)).fetchone()[0]
-    last_claim = conn.execute(
-        "SELECT played_at FROM game_plays WHERE user_id=? AND game='adult18' ORDER BY played_at DESC LIMIT 1",
-        (uid,)).fetchone()
-    since = last_claim["played_at"] if last_claim else 0
-    window_start = now_ms() - ADULT_VIEW_WINDOW_MS
-    since = max(since, window_start)
-    views = conn.execute(
-        "SELECT COUNT(*) FROM game_plays WHERE user_id=? AND game='adult-view' AND played_at>?",
-        (uid, since)).fetchone()[0]
-    return {
-        "views": int(views),
-        "needed": ADULT_ADS_NEEDED,
-        "reward": ADULT_REWARD_CENTS,
-        "left_today": max(0, ADULT_PER_DAY - int(claims_today)),
-        "per_day": ADULT_PER_DAY,
-    }
-
 def user_payload(conn, u):
-    vu = user_vip_until(u)
     return {
-        "vip": vu > now_ms(),
-        "vip_until": vu,
         "id": u["id"], "username": u["username"], "email": u["email"],
         "balance": u["balance_cents"], "total_earned": u["total_earned_cents"],
         "is_admin": bool(u["is_admin"]), "banned": bool(u["banned"]),
@@ -1663,16 +695,10 @@ def dashboard_payload(conn, u):
         "leaderboard": [{"username": r["username"], "earned": r["total_earned_cents"]} for r in lb],
         "faucet": {
             "cooldown": FAUCET_COOLDOWN_SEC,
-            "min": 0,
-            "max": 0,
-            "milli": FAUCET_MILLI,
+            "min": FAUCET_MIN_CENTS,
+            "max": FAUCET_MAX_CENTS,
             "last_claim": last_faucet["claimed_at"] if last_faucet else 0,
         },
-        "adult": adult_progress(conn, u["id"]),
-        "clicks": click_payload(click_state(conn, u)),
-        "intro_done": bool(conn.execute(
-            "SELECT 1 FROM game_plays WHERE user_id=? AND game='intro' AND played_at>=?",
-            (u["id"], now_ms() - (now_ms() % (86400 * 1000)))).fetchone()),
     }
 
 # ---------------- HTTP SERVER ----------------
@@ -1695,16 +721,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
-
-    def do_HEAD(self):
-        parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path
-        if path.startswith("/api/"):
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            return
-        self._serve_static(path, head=True)
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -1746,12 +762,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self._send(404, {"error": "Not found"})
 
-    def _serve_static(self, path, head=False):
+    def _serve_static(self, path):
         if path == "/" or path == "":
             path = "/index.html"
         # sécurité : pas de path traversal
         fpath = os.path.normpath(os.path.join(STATIC, path.lstrip("/")))
-        if not fpath.startswith(os.path.abspath(STATIC)):
+        if not fpath.startswith(STATIC):
             self._send(404, {"error": "Not found"})
             return
         if not os.path.isfile(fpath):
@@ -1760,25 +776,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ext = os.path.splitext(fpath)[1]
         ctype = {"html": "text/html; charset=utf-8", "css": "text/css; charset=utf-8",
                  "js": "application/javascript; charset=utf-8", "svg": "image/svg+xml",
-                 "png": "image/png", "jpg": "image/jpeg", "ico": "image/x-icon",
-                 "txt": "text/plain; charset=utf-8", "mp4": "video/mp4"}.get(ext.lstrip("."), "application/octet-stream")
+                 "png": "image/png", "jpg": "image/jpeg", "ico": "image/x-icon"}.get(ext.lstrip("."), "application/octet-stream")
         with open(fpath, "rb") as f:
             data = f.read()
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "public, max-age=300")
         self.end_headers()
-        if not head:
-            self.wfile.write(data)
+        self.wfile.write(data)
 
 if __name__ == "__main__":
-    log(f"Fichier base : {DB_PATH}")
-    start_persistence()
     init_db()
     log(f"Démarrage sur 0.0.0.0:{PORT}")
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        backup_db(True)
+        pass
