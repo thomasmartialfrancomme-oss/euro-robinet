@@ -42,6 +42,10 @@ if sqlite3 is not None:
 if HAS_PG:
     UNIQUE_ERRORS = UNIQUE_ERRORS + (psycopg2.IntegrityError,)
 
+# État de la base (pour diagnostic + repli sécurisé)
+_PG_FALLBACK = False
+_PG_ERROR = ""
+
 # ------- Paramètres -------
 MIN_WITHDRAW_CENTS = 200          # 2,00 €
 DAILY_CAP_CENTS = 100             # plafond de gain / jour (1,00 € au lieu de 5,00 €)
@@ -141,8 +145,14 @@ class SQLiteConn:
 
 
 def db():
-    if DATABASE_URL and HAS_PG:
-        return PGConn()
+    global _PG_FALLBACK, _PG_ERROR
+    if DATABASE_URL and HAS_PG and not _PG_FALLBACK:
+        try:
+            return PGConn()
+        except Exception as e:
+            _PG_FALLBACK = True
+            _PG_ERROR = str(e)[:300]
+            log(f"PostgreSQL indisponible, repli SQLite: {_PG_ERROR}")
     return SQLiteConn()
 
 def hash_pw(password, salt=None):
@@ -281,6 +291,11 @@ def handle_api(conn, path, method, body, token):
         return 404, {"error": "Not found"}
 
     endpoint = parts[1]
+
+    if endpoint == "health" and method == "GET":
+        using_pg = bool(DATABASE_URL and HAS_PG and not _PG_FALLBACK)
+        return 200, {"db": "postgresql" if using_pg else "sqlite",
+                     "error": _PG_ERROR if _PG_FALLBACK else ""}
 
     # ---- AUTH ----
     if endpoint == "register" and method == "POST":
